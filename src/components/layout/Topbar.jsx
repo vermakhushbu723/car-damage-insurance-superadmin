@@ -1,26 +1,43 @@
 import React from 'react';
-import { Input, Badge } from 'antd';
-import { SearchOutlined, BellOutlined, UserOutlined, MenuOutlined } from '@ant-design/icons';
+import { Input, Badge, Tooltip } from 'antd';
+import { SearchOutlined, BellOutlined, UserOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { COLORS } from '../../constants/theme';
 
 /**
- * Top bar -- search + notifications + profile. `onMenuClick` shows the
- * hamburger (mobile only, opens the Sidebar drawer).
+ * Top bar -- search + notifications + profile.
+ * `onMenuClick` opens the mobile Sidebar drawer (small screens only).
+ * `onToggleCollapsed`/`collapsed` control the desktop sidebar's
+ * full-width/icon-only state (large screens only).
  */
-const Topbar = ({ onMenuClick }) => {
+const Topbar = ({ onMenuClick, collapsed, onToggleCollapsed }) => {
     return (
         <div
             className="flex items-center gap-4 px-4 md:px-8"
             style={{ background: COLORS.topbarBg, height: 72, flexShrink: 0 }}
         >
+            {/* Mobile: opens the Sidebar drawer */}
             <button
                 type="button"
                 onClick={onMenuClick}
                 className="lg:hidden flex items-center justify-center rounded-full"
                 style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.6)' }}
+                aria-label="Open menu"
             >
                 <MenuOutlined />
             </button>
+
+            {/* Desktop: collapses/expands the sidebar to an icon-only rail */}
+            <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+                <button
+                    type="button"
+                    onClick={onToggleCollapsed}
+                    className="hidden lg:flex items-center justify-center rounded-full"
+                    style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.6)' }}
+                    aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                    {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                </button>
+            </Tooltip>
 
             <Input
                 prefix={<SearchOutlined style={{ color: COLORS.textMuted }} />}
