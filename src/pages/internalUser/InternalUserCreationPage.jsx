@@ -5,6 +5,7 @@ import FormSectionCard from '../../components/insurer/FormSectionCard';
 import StepNav from '../../components/insurer/StepNav';
 import PlatformOptionCard from '../../components/internalUser/PlatformOptionCard';
 import StatusOptionCard from '../../components/internalUser/StatusOptionCard';
+import FieldLabel from '../../components/common/FieldLabel';
 import { COLORS } from '../../constants/theme';
 
 const STEPS = ['Platform', 'Role Assignment', 'User Profile Details', 'Organization', 'Account Status'];
@@ -14,10 +15,6 @@ const PLATFORM_OPTIONS = [
     { key: 'web', label: 'Web Portal', icon: <DesktopOutlined /> },
     { key: 'omni', label: 'Omni-Channel (Both)', icon: <CustomerServiceOutlined /> },
 ];
-
-const FieldLabel = ({ children }) => (
-    <span className="block text-sm font-semibold mb-1.5" style={{ color: COLORS.textPrimary }}>{children}</span>
-);
 
 /**
  * "Internal User" sidebar page -- this IS the "As SaaS" form shown in the

@@ -1,13 +1,12 @@
 import React, { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
     Form, Input, Select, Row, Col, Button, Upload, Checkbox, Tag, Divider, ColorPicker, App,
 } from 'antd';
 import { UploadOutlined, PlusOutlined, MinusCircleOutlined, LinkOutlined } from '@ant-design/icons';
 import FormSectionCard from '../../components/insurer/FormSectionCard';
 import StepNav from '../../components/insurer/StepNav';
+import FieldLabel from '../../components/common/FieldLabel';
 import { COLORS } from '../../constants/theme';
-import { ROUTES } from '../../constants/routes';
 
 const STEPS = [
     'Company Details',
@@ -60,12 +59,7 @@ const EditableTagGroup = ({ value = [], onChange }) => {
     );
 };
 
-const FieldLabel = ({ children }) => (
-    <span className="block text-sm font-semibold mb-1.5" style={{ color: COLORS.textPrimary }}>{children}</span>
-);
-
 const InsurerNewIdCreationPage = () => {
-    const navigate = useNavigate();
     const { message } = App.useApp();
     const [form] = Form.useForm();
     const [activeStep, setActiveStep] = useState(1);
@@ -79,14 +73,17 @@ const InsurerNewIdCreationPage = () => {
     };
 
     const handleFinish = (values) => {
-        console.log('New SaaS ID payload:', { ...values, religionTags, brandColor });
-        message.success('SaaS ID created successfully.');
-        navigate(ROUTES.INSURER);
+        console.log('New insurer payload:', { ...values, religionTags, brandColor });
+        message.success('Insurer created successfully.');
+        form.resetFields();
+        setReligionTags(['North-West', 'South-Central']);
+        setBrandColor('#004AC6');
+        setActiveStep(1);
     };
 
     return (
         <div className="p-4 md:p-8">
-            <h1 className="text-2xl font-extrabold mb-6" style={{ color: COLORS.headingBlue }}>SaaS New ID Creation</h1>
+            <h1 className="text-2xl font-extrabold mb-6" style={{ color: COLORS.headingBlue }}>INSURER  Survey &amp; Claims System</h1>
 
             <div className="flex gap-8 items-start">
                 <StepNav steps={STEPS} activeStep={activeStep} onStepClick={scrollToStep} />
@@ -107,7 +104,7 @@ const InsurerNewIdCreationPage = () => {
                             </Col>
                             <Col xs={24} md={12}>
                                 <Form.Item name="cin" label={<FieldLabel>CIN</FieldLabel>}>
-                                    <Input size="large" placeholder="Enter CIN number" />
+                                    <Input size="large" placeholder="Enter Employee Name" />
                                 </Form.Item>
                             </Col>
                             <Col xs={24} md={12}>
@@ -157,14 +154,14 @@ const InsurerNewIdCreationPage = () => {
                             </Col>
                             <Col span={24}>
                                 <Form.Item name="website" label={<FieldLabel>Website</FieldLabel>}>
-                                    <Input size="large" placeholder="Website URL" />
+                                    <Input size="large" placeholder="website URI" />
                                 </Form.Item>
                             </Col>
                         </Row>
                     </FormSectionCard>
 
                     {/* Step 2 -- Primary Admin (National Manager) */}
-                    <FormSectionCard ref={(el) => (sectionRefs.current[1] = el)} step={2} title="SAAS ADMIN ( NATIONAL MANAGER )">
+                    <FormSectionCard ref={(el) => (sectionRefs.current[1] = el)} step={2} title="PRIMARY ADMIN ( NATIONAL MANAGER)">
                         <Row gutter={16}>
                             <Col xs={24} md={12}>
                                 <Form.Item name="adminUserId" label={<FieldLabel>User ID</FieldLabel>}>

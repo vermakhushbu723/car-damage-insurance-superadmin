@@ -12,14 +12,12 @@ import ClaimServiceProviderDashboardPage from '../pages/dashboards/ClaimServiceP
 import PreinspectionSaasDashboardPage from '../pages/dashboards/PreinspectionSaasDashboardPage';
 import PreinspectionServiceProviderDashboardPage from '../pages/dashboards/PreinspectionServiceProviderDashboardPage';
 
-import InsurerListPage from '../pages/insurer/InsurerListPage';
 import InsurerNewIdCreationPage from '../pages/insurer/InsurerNewIdCreationPage';
-
 import InternalUserCreationPage from '../pages/internalUser/InternalUserCreationPage';
+import BrokerCreationPage from '../pages/broker/BrokerCreationPage';
+import SurveyorCreationPage from '../pages/surveyor/SurveyorCreationPage';
+import WorkshopCreationPage from '../pages/workshop/WorkshopCreationPage';
 
-import BrokerPage from '../pages/placeholders/BrokerPage';
-import SurveyorPage from '../pages/placeholders/SurveyorPage';
-import WorkshopPage from '../pages/placeholders/WorkshopPage';
 import SettingsPage from '../pages/placeholders/SettingsPage';
 import SupportPage from '../pages/placeholders/SupportPage';
 
@@ -41,18 +39,18 @@ const AppRoutes = () => (
             <Route path={ROUTES.PREINSPECTION_SAAS} element={<PreinspectionSaasDashboardPage />} />
             <Route path={ROUTES.PREINSPECTION_SERVICE_PROVIDER} element={<PreinspectionServiceProviderDashboardPage />} />
 
-            <Route path={ROUTES.INSURER} element={<InsurerListPage />} />
-            <Route path={ROUTES.INSURER_NEW} element={<InsurerNewIdCreationPage />} />
+            {/* Every one of these sidebar items opens its reference-screenshot
+                form directly -- no invented list page in between (see
+                no-invented-screens-from-mockups memory). */}
+            <Route path={ROUTES.INSURER} element={<InsurerNewIdCreationPage />} />
+            <Route path={ROUTES.INSURER_NEW} element={<Navigate to={ROUTES.INSURER} replace />} />
 
-            {/* Sidebar "Internal User" opens the "As SaaS" form directly --
-                exactly the screen in the reference screenshots, no extra
-                list page in between. */}
             <Route path={ROUTES.INTERNAL_USER} element={<InternalUserCreationPage />} />
             <Route path={ROUTES.INTERNAL_USER_NEW} element={<Navigate to={ROUTES.INTERNAL_USER} replace />} />
 
-            <Route path={ROUTES.BROKER} element={<BrokerPage />} />
-            <Route path={ROUTES.SURVEYOR} element={<SurveyorPage />} />
-            <Route path={ROUTES.WORKSHOP} element={<WorkshopPage />} />
+            <Route path={ROUTES.BROKER} element={<BrokerCreationPage />} />
+            <Route path={ROUTES.SURVEYOR} element={<SurveyorCreationPage />} />
+            <Route path={ROUTES.WORKSHOP} element={<WorkshopCreationPage />} />
             <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
             <Route path={ROUTES.SUPPORT} element={<SupportPage />} />
         </Route>
