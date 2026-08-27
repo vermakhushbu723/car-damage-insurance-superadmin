@@ -15,7 +15,9 @@ import PreinspectionServiceProviderDashboardPage from '../pages/dashboards/Prein
 import InsurerListPage from '../pages/insurer/InsurerListPage';
 import InsurerNewIdCreationPage from '../pages/insurer/InsurerNewIdCreationPage';
 
-import InternalUserPage from '../pages/placeholders/InternalUserPage';
+import InternalUserListPage from '../pages/internalUser/InternalUserListPage';
+import InternalUserCreationPage from '../pages/internalUser/InternalUserCreationPage';
+
 import BrokerPage from '../pages/placeholders/BrokerPage';
 import SurveyorPage from '../pages/placeholders/SurveyorPage';
 import WorkshopPage from '../pages/placeholders/WorkshopPage';
@@ -43,7 +45,9 @@ const AppRoutes = () => (
             <Route path={ROUTES.INSURER} element={<InsurerListPage />} />
             <Route path={ROUTES.INSURER_NEW} element={<InsurerNewIdCreationPage />} />
 
-            <Route path={ROUTES.INTERNAL_USER} element={<InternalUserPage />} />
+            <Route path={ROUTES.INTERNAL_USER} element={<InternalUserListPage />} />
+            <Route path={ROUTES.INTERNAL_USER_NEW} element={<InternalUserCreationPage />} />
+
             <Route path={ROUTES.BROKER} element={<BrokerPage />} />
             <Route path={ROUTES.SURVEYOR} element={<SurveyorPage />} />
             <Route path={ROUTES.WORKSHOP} element={<WorkshopPage />} />

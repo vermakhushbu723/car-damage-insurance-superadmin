@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Form, Input, Select, Row, Col, Button, Upload, Checkbox, Tag, Divider, message, ColorPicker,
+    Form, Input, Select, Row, Col, Button, Upload, Checkbox, Tag, Divider, ColorPicker, App,
 } from 'antd';
 import { UploadOutlined, PlusOutlined, MinusCircleOutlined, LinkOutlined } from '@ant-design/icons';
 import FormSectionCard from '../../components/insurer/FormSectionCard';
@@ -66,6 +66,7 @@ const FieldLabel = ({ children }) => (
 
 const InsurerNewIdCreationPage = () => {
     const navigate = useNavigate();
+    const { message } = App.useApp();
     const [form] = Form.useForm();
     const [activeStep, setActiveStep] = useState(1);
     const [religionTags, setReligionTags] = useState(['North-West', 'South-Central']);

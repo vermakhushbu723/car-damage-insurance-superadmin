@@ -10,6 +10,7 @@ export const ROUTES = {
     PREINSPECTION_SERVICE_PROVIDER: '/preinspection/service-provider',
 
     INTERNAL_USER: '/internal-user',
+    INTERNAL_USER_NEW: '/internal-user/new',
     INSURER: '/insurer',
     INSURER_NEW: '/insurer/new',
     BROKER: '/broker',
