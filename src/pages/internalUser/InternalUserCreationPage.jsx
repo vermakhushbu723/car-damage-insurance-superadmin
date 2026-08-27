@@ -1,5 +1,4 @@
 import React, { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Form, Input, Row, Col, Button, App } from 'antd';
 import { MobileOutlined, DesktopOutlined, CustomerServiceOutlined } from '@ant-design/icons';
 import FormSectionCard from '../../components/insurer/FormSectionCard';
@@ -7,7 +6,6 @@ import StepNav from '../../components/insurer/StepNav';
 import PlatformOptionCard from '../../components/internalUser/PlatformOptionCard';
 import StatusOptionCard from '../../components/internalUser/StatusOptionCard';
 import { COLORS } from '../../constants/theme';
-import { ROUTES } from '../../constants/routes';
 
 const STEPS = ['Platform', 'Role Assignment', 'User Profile Details', 'Organization', 'Account Status'];
 
@@ -22,14 +20,14 @@ const FieldLabel = ({ children }) => (
 );
 
 /**
- * "Internal User > As SaaS" creation form -- same shell (numbered
- * FormSectionCard sections + click-to-scroll StepNav + trailing "Create
- * Now" button) as InsurerNewIdCreationPage, just a different field set.
- * UI-only for now: "Create Now" just logs the payload and returns to the
- * list (see components/insurer's shared pieces for the reused chrome).
+ * "Internal User" sidebar page -- this IS the "As SaaS" form shown in the
+ * reference screenshots, reached directly (no invented list page in
+ * between). Same shell (numbered FormSectionCard sections + click-to-scroll
+ * StepNav + trailing "Create Now" button) as InsurerNewIdCreationPage,
+ * just a different field set. UI-only for now: "Create Now" logs the
+ * payload and resets the form in place.
  */
 const InternalUserCreationPage = () => {
-    const navigate = useNavigate();
     const { message } = App.useApp();
     const [form] = Form.useForm();
     const [activeStep, setActiveStep] = useState(1);
@@ -45,7 +43,12 @@ const InternalUserCreationPage = () => {
     const handleFinish = (values) => {
         console.log('New internal user payload:', { ...values, platform, accountStatus });
         message.success('Internal user created successfully.');
-        navigate(ROUTES.INTERNAL_USER);
+        // This page IS the "Internal User" screen (no separate list page --
+        // see routes/AppRoutes.jsx) -- reset in place rather than navigate.
+        form.resetFields();
+        setPlatform('omni');
+        setAccountStatus('active');
+        setActiveStep(1);
     };
 
     return (

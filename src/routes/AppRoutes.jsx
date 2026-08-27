@@ -15,7 +15,6 @@ import PreinspectionServiceProviderDashboardPage from '../pages/dashboards/Prein
 import InsurerListPage from '../pages/insurer/InsurerListPage';
 import InsurerNewIdCreationPage from '../pages/insurer/InsurerNewIdCreationPage';
 
-import InternalUserListPage from '../pages/internalUser/InternalUserListPage';
 import InternalUserCreationPage from '../pages/internalUser/InternalUserCreationPage';
 
 import BrokerPage from '../pages/placeholders/BrokerPage';
@@ -45,8 +44,11 @@ const AppRoutes = () => (
             <Route path={ROUTES.INSURER} element={<InsurerListPage />} />
             <Route path={ROUTES.INSURER_NEW} element={<InsurerNewIdCreationPage />} />
 
-            <Route path={ROUTES.INTERNAL_USER} element={<InternalUserListPage />} />
-            <Route path={ROUTES.INTERNAL_USER_NEW} element={<InternalUserCreationPage />} />
+            {/* Sidebar "Internal User" opens the "As SaaS" form directly --
+                exactly the screen in the reference screenshots, no extra
+                list page in between. */}
+            <Route path={ROUTES.INTERNAL_USER} element={<InternalUserCreationPage />} />
+            <Route path={ROUTES.INTERNAL_USER_NEW} element={<Navigate to={ROUTES.INTERNAL_USER} replace />} />
 
             <Route path={ROUTES.BROKER} element={<BrokerPage />} />
             <Route path={ROUTES.SURVEYOR} element={<SurveyorPage />} />
