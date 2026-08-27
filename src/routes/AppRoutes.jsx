@@ -18,7 +18,7 @@ import BrokerCreationPage from '../pages/broker/BrokerCreationPage';
 import SurveyorCreationPage from '../pages/surveyor/SurveyorCreationPage';
 import WorkshopCreationPage from '../pages/workshop/WorkshopCreationPage';
 
-import SettingsPage from '../pages/placeholders/SettingsPage';
+import SettingsPage from '../pages/settings/SettingsPage';
 import SupportPage from '../pages/placeholders/SupportPage';
 
 const AppRoutes = () => (
