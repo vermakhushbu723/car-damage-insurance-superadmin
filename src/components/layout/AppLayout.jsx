@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Drawer } from 'antd';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
-import { COLORS } from '../../constants/theme';
 
-const SIDEBAR_WIDTH = 260;
-const SIDEBAR_WIDTH_COLLAPSED = 80;
+const SIDEBAR_WIDTH = 236;
+const SIDEBAR_WIDTH_COLLAPSED = 68;
 const COLLAPSE_STORAGE_KEY = 'superadmin_sidebar_collapsed';
 
 const readStoredCollapsed = () => {
@@ -18,15 +17,19 @@ const readStoredCollapsed = () => {
 };
 
 /**
- * Shell for every authenticated screen: a fixed-width sidebar on desktop
- * (collapsible to an icon-only rail via Topbar's toggle, remembers the
- * choice in localStorage; collapses into a Drawer below the `lg`
- * breakpoint on mobile instead) + topbar + scrollable content area
- * rendering the active route via <Outlet />.
+ * Shell for every authenticated screen: sidebar (collapsible icon rail on
+ * desktop, Drawer below `lg`) + topbar + scrollable content via <Outlet />.
  */
 const AppLayout = () => {
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(readStoredCollapsed);
+    const scrollRef = useRef(null);
+    const { pathname } = useLocation();
+
+    // Each page starts at the top (content pane scrolls, not the window).
+    useEffect(() => {
+        scrollRef.current?.scrollTo({ top: 0 });
+    }, [pathname]);
 
     const toggleCollapsed = () => {
         setCollapsed((prev) => {
@@ -41,16 +44,11 @@ const AppLayout = () => {
     };
 
     return (
-        <div className="flex h-screen w-full overflow-hidden" style={{ background: COLORS.bgApp }}>
-            {/* Desktop sidebar -- width animates between full and icon-only. */}
-            <div
-                className="hidden lg:block shrink-0"
-                style={{ width: collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH, transition: 'width 0.2s ease' }}
-            >
+        <div className="flex h-screen w-full overflow-hidden bg-white">
+            <div className="hidden lg:block shrink-0" style={{ width: collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH, transition: 'width 0.2s ease' }}>
                 <Sidebar collapsed={collapsed} />
             </div>
 
-            {/* Mobile sidebar drawer -- always full width/labels, it's already an overlay. */}
             <Drawer
                 placement="left"
                 open={mobileNavOpen}
@@ -64,9 +62,11 @@ const AppLayout = () => {
 
             <div className="flex-1 flex flex-col min-w-0">
                 <Topbar onMenuClick={() => setMobileNavOpen(true)} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-                <div className="flex-1 overflow-y-auto">
-                    <Outlet />
-                </div>
+                <main ref={scrollRef} id="app-scroll" className="flex-1 overflow-y-auto">
+                    <div className="p-3 sm:p-4 md:p-5 max-w-[1500px]">
+                        <Outlet />
+                    </div>
+                </main>
             </div>
         </div>
     );

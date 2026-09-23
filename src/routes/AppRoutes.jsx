@@ -5,56 +5,83 @@ import RequireAuth from '../auth/RequireAuth';
 import AppLayout from '../components/layout/AppLayout';
 
 import LoginPage from '../pages/auth/LoginPage';
-import HomeDashboardPage from '../pages/home/HomeDashboardPage';
+import HomeDashboardPage from '../pages/dashboard/HomeDashboardPage';
+import OverviewDashboardPage from '../pages/dashboard/OverviewDashboardPage';
 
-import ClaimSaasDashboardPage from '../pages/dashboards/ClaimSaasDashboardPage';
-import ClaimServiceProviderDashboardPage from '../pages/dashboards/ClaimServiceProviderDashboardPage';
-import PreinspectionSaasDashboardPage from '../pages/dashboards/PreinspectionSaasDashboardPage';
-import PreinspectionServiceProviderDashboardPage from '../pages/dashboards/PreinspectionServiceProviderDashboardPage';
+import OrganizationsPage from '../pages/organizations/OrganizationsPage';
+import OrganizationFormPage from '../pages/organizations/OrganizationFormPage';
+import SaasPlansPage from '../pages/plans/SaasPlansPage';
+import AdminUsersPage from '../pages/users/AdminUsersPage';
 
-import InsurerNewIdCreationPage from '../pages/insurer/InsurerNewIdCreationPage';
-import InternalUserCreationPage from '../pages/internalUser/InternalUserCreationPage';
-import BrokerCreationPage from '../pages/broker/BrokerCreationPage';
-import SurveyorCreationPage from '../pages/surveyor/SurveyorCreationPage';
-import WorkshopCreationPage from '../pages/workshop/WorkshopCreationPage';
+import UsersPage from '../pages/users/UsersPage';
+import UserCreatePage from '../pages/users/UserCreatePage';
+import RolesPermissionsPage from '../pages/users/RolesPermissionsPage';
+import PasswordResetPage from '../pages/users/PasswordResetPage';
+import UserActivationPage from '../pages/users/UserActivationPage';
 
-import SettingsPage from '../pages/settings/SettingsPage';
-import SupportPage from '../pages/placeholders/SupportPage';
+import ServiceModelsPage from '../pages/service/ServiceModelsPage';
+import ServiceModelFormPage from '../pages/service/ServiceModelFormPage';
+import WorkflowConfigPage from '../pages/workflow/WorkflowConfigPage';
+
+import ClaimReportPage from '../pages/reports/ClaimReportPage';
+import UserReportPage from '../pages/reports/UserReportPage';
+import SaasUsageReportPage from '../pages/reports/SaasUsageReportPage';
+import DataDownloadPage from '../pages/reports/DataDownloadPage';
+
+import AuditLogsPage from '../pages/system/AuditLogsPage';
+import SystemSettingsPage from '../pages/system/SystemSettingsPage';
+
+// Paths from the previous sidebar design, redirected so old bookmarks still land somewhere sensible.
+const LEGACY_REDIRECTS = [
+    ['/claim/*', `${ROUTES.OVERVIEW}?mode=saas`],
+    ['/preinspection/*', `${ROUTES.OVERVIEW}?mode=saas`],
+    ['/insurer/*', `${ROUTES.ORGANIZATION_NEW}?type=Insurer`],
+    ['/broker', `${ROUTES.ORGANIZATION_NEW}?type=Broker`],
+    ['/surveyor', `${ROUTES.ORGANIZATION_NEW}?type=Surveyor`],
+    ['/workshop', `${ROUTES.ORGANIZATION_NEW}?type=Workshop`],
+    ['/internal-user/*', ROUTES.USER_NEW],
+    ['/settings', ROUTES.SYSTEM_SETTINGS],
+    ['/support', ROUTES.HOME],
+];
 
 const AppRoutes = () => (
     <Routes>
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
 
-        <Route
-            element={(
-                <RequireAuth>
-                    <AppLayout />
-                </RequireAuth>
-            )}
-        >
+        <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
             <Route path={ROUTES.HOME} element={<HomeDashboardPage />} />
+            <Route path={ROUTES.OVERVIEW} element={<OverviewDashboardPage />} />
 
-            <Route path={ROUTES.CLAIM_SAAS} element={<ClaimSaasDashboardPage />} />
-            <Route path={ROUTES.CLAIM_SERVICE_PROVIDER} element={<ClaimServiceProviderDashboardPage />} />
-            <Route path={ROUTES.PREINSPECTION_SAAS} element={<PreinspectionSaasDashboardPage />} />
-            <Route path={ROUTES.PREINSPECTION_SERVICE_PROVIDER} element={<PreinspectionServiceProviderDashboardPage />} />
+            <Route path={ROUTES.ORGANIZATIONS} element={<OrganizationsPage />} />
+            <Route path={ROUTES.ORGANIZATION_NEW} element={<OrganizationFormPage key="new" />} />
+            <Route path={ROUTES.ORGANIZATION_VIEW} element={<OrganizationFormPage />} />
+            <Route path={ROUTES.SAAS_PLANS} element={<SaasPlansPage />} />
+            <Route path={ROUTES.ADMIN_USERS} element={<AdminUsersPage />} />
+            <Route path={ROUTES.ADMIN_USER_NEW} element={<UserCreatePage key="admin" variant="admin" />} />
 
-            {/* Every one of these sidebar items opens its reference-screenshot
-                form directly -- no invented list page in between (see
-                no-invented-screens-from-mockups memory). */}
-            <Route path={ROUTES.INSURER} element={<InsurerNewIdCreationPage />} />
-            <Route path={ROUTES.INSURER_NEW} element={<Navigate to={ROUTES.INSURER} replace />} />
+            <Route path={ROUTES.USERS} element={<UsersPage />} />
+            <Route path={ROUTES.USER_NEW} element={<UserCreatePage key="user" variant="user" />} />
+            <Route path={ROUTES.ROLES} element={<RolesPermissionsPage />} />
+            <Route path={ROUTES.PASSWORD_RESET} element={<PasswordResetPage />} />
+            <Route path={ROUTES.USER_ACTIVATION} element={<UserActivationPage />} />
 
-            <Route path={ROUTES.INTERNAL_USER} element={<InternalUserCreationPage />} />
-            <Route path={ROUTES.INTERNAL_USER_NEW} element={<Navigate to={ROUTES.INTERNAL_USER} replace />} />
+            <Route path={ROUTES.SERVICE_MODELS} element={<ServiceModelsPage />} />
+            <Route path={ROUTES.SERVICE_MODEL_NEW} element={<ServiceModelFormPage key="new" />} />
+            <Route path={ROUTES.SERVICE_MODEL_VIEW} element={<ServiceModelFormPage />} />
+            <Route path={ROUTES.WORKFLOW} element={<WorkflowConfigPage />} />
 
-            <Route path={ROUTES.BROKER} element={<BrokerCreationPage />} />
-            <Route path={ROUTES.SURVEYOR} element={<SurveyorCreationPage />} />
-            <Route path={ROUTES.WORKSHOP} element={<WorkshopCreationPage />} />
-            <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
-            <Route path={ROUTES.SUPPORT} element={<SupportPage />} />
+            <Route path={ROUTES.CLAIM_REPORT} element={<ClaimReportPage />} />
+            <Route path={ROUTES.USER_REPORT} element={<UserReportPage />} />
+            <Route path={ROUTES.SAAS_USAGE} element={<SaasUsageReportPage />} />
+            <Route path={ROUTES.DATA_DOWNLOAD} element={<DataDownloadPage />} />
+
+            <Route path={ROUTES.AUDIT_LOGS} element={<AuditLogsPage />} />
+            <Route path={ROUTES.SYSTEM_SETTINGS} element={<SystemSettingsPage />} />
+
+            {LEGACY_REDIRECTS.map(([from, to]) => <Route key={from} path={from} element={<Navigate to={to} replace />} />)}
         </Route>
 
+        <Route path="/" element={<Navigate to={ROUTES.HOME} replace />} />
         <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
     </Routes>
 );

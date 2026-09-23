@@ -1,38 +1,76 @@
 import {
     AppstoreOutlined,
-    UserOutlined,
-    SafetyCertificateOutlined,
+    BankOutlined,
+    CrownOutlined,
     TeamOutlined,
-    PieChartOutlined,
-    ShopOutlined,
+    UserOutlined,
+    SafetyOutlined,
+    LockOutlined,
+    UserAddOutlined,
+    ToolOutlined,
+    ApartmentOutlined,
+    FileTextOutlined,
+    IdcardOutlined,
+    FileSearchOutlined,
+    DownloadOutlined,
+    AuditOutlined,
     SettingOutlined,
-    CustomerServiceOutlined,
 } from '@ant-design/icons';
 import { ROUTES } from './routes';
 
-// The sidebar (see components/layout/Sidebar.jsx). "Dashboard" always routes
-// back to the module/mode picker hub -- everything else is a shared page
-// regardless of which dashboard variant (Claim/Preinspection x SaaS/Service
-// Provider) got you there.
-export const SIDEBAR_ITEMS = [
-    { key: 'dashboard', label: 'Dashboard', icon: AppstoreOutlined, path: ROUTES.HOME },
-    { key: 'internal-user', label: 'Internal User', icon: UserOutlined, path: ROUTES.INTERNAL_USER },
-    { key: 'insurer', label: 'Insurer', icon: SafetyCertificateOutlined, path: ROUTES.INSURER },
-    { key: 'broker', label: 'Broker', icon: TeamOutlined, path: ROUTES.BROKER },
-    { key: 'surveyor', label: 'Surveyor', icon: PieChartOutlined, path: ROUTES.SURVEYOR },
-    { key: 'workshop', label: 'Workshop', icon: ShopOutlined, path: ROUTES.WORKSHOP },
+// Sidebar, grouped exactly as the reference design's section headings.
+// `null` title = ungrouped (Dashboard sits above the first heading).
+export const SIDEBAR_GROUPS = [
+    {
+        title: null,
+        items: [{ key: 'dashboard', label: 'Dashboard', icon: AppstoreOutlined, path: ROUTES.HOME }],
+    },
+    {
+        title: 'ORGANIZATIONS MANAGEMENT',
+        items: [
+            { key: 'organizations', label: 'Organzitions/Vendors', icon: BankOutlined, path: ROUTES.ORGANIZATIONS },
+            { key: 'saas-plans', label: 'SaaS Plans & Subscription', icon: CrownOutlined, path: ROUTES.SAAS_PLANS },
+            { key: 'admin-users', label: 'Admin Users', icon: TeamOutlined, path: ROUTES.ADMIN_USERS },
+        ],
+    },
+    {
+        title: 'USER MANAGEMENT',
+        items: [
+            { key: 'users', label: 'Users', icon: UserOutlined, path: ROUTES.USERS },
+            { key: 'roles', label: 'Roles & Permissions', icon: SafetyOutlined, path: ROUTES.ROLES },
+            { key: 'password-reset', label: 'Password Reset', icon: LockOutlined, path: ROUTES.PASSWORD_RESET },
+            { key: 'user-activation', label: 'User Activation', icon: UserAddOutlined, path: ROUTES.USER_ACTIVATION },
+        ],
+    },
+    {
+        title: 'SERVICE CONFIGURATION',
+        items: [
+            { key: 'service-models', label: 'Service Model', icon: ToolOutlined, path: ROUTES.SERVICE_MODELS },
+            { key: 'workflow', label: 'Workflow Configuration', icon: ApartmentOutlined, path: ROUTES.WORKFLOW },
+        ],
+    },
+    {
+        title: 'REPORTS & ANALYTICS',
+        items: [
+            { key: 'claim-report', label: 'Claim Report', icon: FileTextOutlined, path: ROUTES.CLAIM_REPORT },
+            { key: 'user-report', label: 'User Report', icon: IdcardOutlined, path: ROUTES.USER_REPORT },
+            { key: 'saas-usage', label: 'SaaS  Usage Report', icon: FileSearchOutlined, path: ROUTES.SAAS_USAGE },
+            { key: 'data-download', label: 'Data Download', icon: DownloadOutlined, path: ROUTES.DATA_DOWNLOAD },
+        ],
+    },
+    {
+        title: 'SYSTEM',
+        items: [
+            { key: 'audit-logs', label: 'Audit Logs', icon: AuditOutlined, path: ROUTES.AUDIT_LOGS },
+            { key: 'system-settings', label: 'System Setings', icon: SettingOutlined, path: ROUTES.SYSTEM_SETTINGS },
+        ],
+    },
 ];
 
-// Rendered separately, pinned toward the bottom of the sidebar (see the gap
-// in the reference design between Workshop and Settings).
-export const SIDEBAR_FOOTER_ITEMS = [
-    { key: 'settings', label: 'Settings', icon: SettingOutlined, path: ROUTES.SETTINGS },
-    { key: 'support', label: 'Support', icon: CustomerServiceOutlined, path: ROUTES.SUPPORT },
-];
+export const ALL_NAV_ITEMS = SIDEBAR_GROUPS.flatMap((g) => g.items);
 
-// A route is "on the Dashboard" (sidebar's Dashboard item highlighted) if it
-// matches the hub itself or any of the 4 module/mode dashboard variants.
-const DASHBOARD_PREFIXES = [ROUTES.HOME, '/claim/', '/preinspection/'];
-export function isDashboardRoute(pathname) {
-    return DASHBOARD_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
+// Active-item matching: exact path or any nested path (e.g. /users/new
+// keeps "Users" highlighted, /dashboard/overview keeps "Dashboard").
+export function isNavItemActive(item, pathname) {
+    return pathname === item.path || pathname.startsWith(`${item.path}/`);
 }

@@ -13,15 +13,15 @@ body,
 body {
     margin: 0;
     font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    color: #0f172a;
     -webkit-font-smoothing: antialiased;
 }
 
-/* Thin, unobtrusive scrollbars for the sidebar/table/content panes instead
-   of hiding them outright -- this is a desktop-first admin panel where
-   scroll affordance matters. */
+/* Thin scrollbars instead of hiding them -- desktop-first admin panel. */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -31,4 +31,82 @@ body {
 
 ::-webkit-scrollbar-track {
     background: transparent;
+}
+
+/* ---------- Tables: bold dark header, boxed pagination like the design ---------- */
+.app-table .ant-table-thead > tr > th {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.app-table .ant-table-thead > tr > th::before {
+    display: none;
+}
+
+.app-table .ant-table-pagination.ant-pagination {
+    margin: 14px 16px !important;
+    align-items: center;
+}
+
+.app-table .ant-pagination .ant-pagination-item,
+.app-table .ant-pagination .ant-pagination-prev .ant-pagination-item-link,
+.app-table .ant-pagination .ant-pagination-next .ant-pagination-item-link {
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #f8fafc;
+}
+
+.app-table .ant-pagination .ant-pagination-item-active {
+    background: #0b4cd0;
+    border-color: #0b4cd0;
+}
+
+.app-table .ant-pagination .ant-pagination-item-active a {
+    color: #fff !important;
+}
+
+/* Blue header variant (Workflow / System Settings tables). */
+.app-table.table-blue-head .ant-table-thead > tr > th {
+    background: #0b4cd0 !important;
+    color: #fff;
+    font-weight: 500;
+}
+
+/* ---------- "Off | On" labelled switch ---------- */
+.onoff-switch.ant-switch {
+    min-width: 50px;
+}
+
+/* ---------- Underlined page tabs (System Settings / Workflow / User Activation) ---------- */
+.page-tabs .ant-tabs-nav::before {
+    border-bottom: 3px solid #e5e7eb !important;
+}
+
+.page-tabs .ant-tabs-tab {
+    font-weight: 600;
+    padding: 6px 0 !important;
+}
+
+.page-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+    color: #0f172a;
+}
+
+.page-tabs .ant-tabs-ink-bar {
+    height: 3px !important;
+}
+
+/* Filter-bar controls stay white with a border (form fields use the grey fill). */
+.filter-bar .ant-select-selector,
+.filter-bar .ant-select,
+.filter-bar .ant-input-affix-wrapper,
+.filter-bar .ant-picker {
+    background: #fff !important;
+}
+
+/* Upload-styled text fields: stretch to the column so long hints truncate instead of overflowing. */
+.upload-box,
+.upload-box .ant-upload-select {
+    display: block !important;
+    width: 100%;
+    min-width: 0;
 }
