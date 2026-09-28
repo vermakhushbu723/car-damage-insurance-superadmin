@@ -303,3 +303,51 @@ const WORKSHOP = {
 };
 
 export const ORG_FORMS = { Insurer: INSURER, Broker: BROKER, Surveyor: SURVEYOR, Workshop: WORKSHOP };
+
+// ---------------------------------------------------------------------
+// PLAN & SETTINGS -- appended to every organization form. Everything the
+// organization runs on (plan, validity, workflow, permissions, modules,
+// channels) is finalized here, at ID creation. Fields depend on the
+// service model: Service Provider IDs also carry a fee bill model.
+// ---------------------------------------------------------------------
+export const ORG_MODULES = ['Claim Management', 'Preinspection', 'Reports & Analytics', 'Data Download', 'API Access', 'Document/DMS'];
+export const ORG_CHANNELS = ['Whatsapp', 'email', 'SMS', 'Letter', 'In - app'];
+export const VALIDITY_MONTHS = [3, 6, 12, 24, 36];
+
+export const PLAN_SETTINGS_DEFAULTS = {
+    plan: 'starter',
+    billingCycle: 'Yearly',
+    validityMonths: 12,
+    roleTemplate: 'Organisation admin',
+    modules: ['Claim Management', 'Reports & Analytics'],
+    channels: ['Whatsapp', 'email'],
+    feeBillModel: 'Automatic-based on product model',
+};
+
+export const buildPlanSettingsSection = ({ mode, plans, roles }) => ({
+    title: 'PLAN & SETTINGS',
+    fields: [
+        {
+            name: 'plan',
+            label: mode === 'saas' ? 'SaaS Plan' : 'Service Plan',
+            type: 'select',
+            placeholder: 'Select Plan',
+            required: true,
+            options: plans.map((p) => ({ value: p.id, label: `${p.name} — ${p.price ? `₹${p.price.toLocaleString('en-IN')}/mo` : p.priceLabel ?? 'Custom'}` })),
+        },
+        { name: 'userLimit', label: 'User Limit', type: 'static', placeholder: 'Based on the plan' },
+        { name: 'billingCycle', label: 'Billing Cycle', type: 'select', placeholder: 'Select Billing Cycle', required: true, options: ['Monthly', 'Quarterly', 'Yearly'] },
+        { name: 'subscriptionStart', label: mode === 'saas' ? 'Subscription Start Date' : 'Contract Start Date', type: 'date', placeholder: 'Select Date', required: true },
+        { name: 'validityMonths', label: 'Validity', type: 'select', placeholder: 'Select Validity', required: true, options: VALIDITY_MONTHS.map((m) => ({ value: m, label: `${m} Months` })) },
+        { name: 'validTill', label: 'Valid Till', type: 'static', placeholder: 'Auto calculated' },
+        ...(mode === 'serviceProvider' ? [
+            { name: 'feeBillModel', label: 'Fee Bill Model', type: 'select', placeholder: 'Select Fee Bill Model', required: true, options: ['Automatic-based on product model', 'Manual entry'] },
+            { name: 'feePerClaim', label: 'Fee Per Claim (₹)', type: 'number', placeholder: 'Eg. 1500' },
+        ] : []),
+        { name: 'workflowName', label: 'Claim Workflow (auto-assigned)', type: 'static', span: 24 },
+        { name: 'roleTemplate', label: 'Admin Permission Template', type: 'select', placeholder: 'Select Role Template', required: true, options: roles },
+        { type: 'spacer', key: 'spacer-role' },
+        { name: 'modules', label: 'Modules Enabled', type: 'checkboxes', options: ORG_MODULES, span: 24, rules: [{ type: 'array', min: 1, message: 'Enable at least one module' }] },
+        { name: 'channels', label: 'Communication Channels', type: 'checkboxes', options: ORG_CHANNELS, span: 24 },
+    ],
+});

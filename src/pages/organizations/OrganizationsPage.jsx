@@ -11,6 +11,8 @@ import { useCollection, useAuditLog } from '../../store/DataStore';
 import { ROUTES, orgPath } from '../../constants/routes';
 import { ORG_TYPES, ORG_STATUSES, SERVICE_MODES } from '../../data/seed';
 import { formatDate, matchesQuery } from '../../utils/format';
+import { getAdminScope } from '../../auth/session';
+import { SERVICE_MODEL_OF_MODE } from '../../data/workflow';
 
 const EMPTY_FILTERS = { q: '', status: 'All', type: 'All', plan: 'All', serviceModel: 'All' };
 const opts = (list, allLabel) => [{ value: 'All', label: allLabel }, ...list.map((v) => ({ value: v, label: v }))];
@@ -25,7 +27,10 @@ const OrganizationsPage = () => {
     const navigate = useNavigate();
     const { message } = App.useApp();
     const log = useAuditLog();
-    const { items: orgs, update } = useCollection('organizations');
+    const { items: allOrgs, update } = useCollection('organizations');
+    // A SaaS / Service Provider super admin only manages their own organizations.
+    const scope = getAdminScope();
+    const orgs = useMemo(() => (scope === 'all' ? allOrgs : allOrgs.filter((o) => o.serviceModel === SERVICE_MODEL_OF_MODE[scope])), [allOrgs, scope]);
     const { items: plans } = useCollection('plans');
     const [draft, setDraft] = useState(EMPTY_FILTERS);
     const [applied, setApplied] = useState(EMPTY_FILTERS);

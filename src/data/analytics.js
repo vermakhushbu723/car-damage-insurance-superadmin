@@ -117,3 +117,7 @@ export const SYSTEM_ALERTS = [
     { id: 'a3', icon: 'warning', text: '4 Users Have Inactive Status For More Then 30 Days', target: 'user-activation' },
     { id: 'a4', icon: 'info', text: 'Storage Usage Exceeded 80% For 3 Organizations', target: 'saas-usage' },
 ];
+
+// Month-to-date revenue on the overview dashboard, per operating mode
+// (SaaS = subscription revenue, Service Provider = service fee bills).
+export const MODE_REVENUE = { saas: '1,24,85,000', serviceProvider: '38,62,500' };

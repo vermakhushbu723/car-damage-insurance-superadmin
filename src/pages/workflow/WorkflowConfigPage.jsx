@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Tabs, Form, Select, Modal, Input, Checkbox, App } from 'antd';
 import {
     BankOutlined, TeamOutlined, UserOutlined, SafetyOutlined, FileAddOutlined, UserSwitchOutlined, FileSearchOutlined,
     FileTextOutlined, RobotOutlined, AuditOutlined, CheckSquareOutlined, SolutionOutlined, SafetyCertificateOutlined,
-    WalletOutlined, DollarOutlined, ArrowRightOutlined,
+    WalletOutlined, DollarOutlined, ArrowRightOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import PageTitle from '../../components/ui/PageTitle';
 import StatCard from '../../components/ui/StatCard';
@@ -12,10 +12,14 @@ import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
 import OnOffSwitch from '../../components/ui/OnOffSwitch';
 import ModeToggle from '../../components/ui/ModeToggle';
+import { scopedMode } from '../../auth/session';
 import { EditChip } from '../../components/ui/RowActions';
 import { useStoreValue, useCollection, useAuditLog, newId } from '../../store/DataStore';
-import { OPERATING_MODELS, ADMIN_PROFILES, FEE_BILL_MODELS, CHANNEL_OPTIONS, AUTO_ROLES } from '../../data/workflow';
+import {
+    OPERATING_MODELS, ADMIN_PROFILES, FEE_BILL_MODELS, CHANNEL_OPTIONS, AUTO_ROLES, modeOfOrg, SERVICE_MODEL_OF_MODE, MODE_LABEL,
+} from '../../data/workflow';
 import { COLORS } from '../../constants/theme';
+import { ROUTES, orgPath } from '../../constants/routes';
 
 const STAGE_ICONS = {
     Intimation: <FileAddOutlined />,
@@ -62,18 +66,25 @@ const JourneyStepper = ({ stages, rules, selected, onSelect }) => (
 );
 
 /**
- * Claim Workflow & Role Configuration. The "SaaS Mode / As Service
- * Provider" toggle swaps the whole config (stages, stats, banner, rules,
- * defaults -- see data/workflow.js); edits are saved per mode in the store.
+ * Claim Workflow & Role Configuration. There is one workflow per service
+ * model and it is assigned automatically: an organization created as SaaS
+ * runs the SaaS workflow, one created As Service Provider runs the Service
+ * Provider workflow (see OrganizationFormPage). `?org=<id>` opens that
+ * organization's workflow and the mode follows it; the toggle switches
+ * which of the two workflow templates is being edited.
  */
 const WorkflowConfigPage = () => {
     const { message, modal } = App.useApp();
     const log = useAuditLog();
+    const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
-    const mode = params.get('mode') === 'service-provider' ? 'serviceProvider' : 'saas';
     const [workflow, setWorkflow] = useStoreValue('workflow');
     const { items: orgs } = useCollection('organizations');
+    const linkedOrg = orgs.find((o) => o.id === params.get('org'));
+    // Automatic: an organization's workflow is decided by its service model.
+    const mode = scopedMode(linkedOrg ? modeOfOrg(linkedOrg) : params.get('mode') === 'service-provider' ? 'serviceProvider' : 'saas');
     const cfg = workflow[mode];
+    const modeOrgs = useMemo(() => orgs.filter((o) => o.serviceModel === SERVICE_MODEL_OF_MODE[mode]), [orgs, mode]);
 
     const [tab, setTab] = useState('overview');
     const [selectedStage, setSelectedStage] = useState(cfg.stages[0]);
@@ -85,12 +96,18 @@ const WorkflowConfigPage = () => {
 
     const rules = draftRules ?? cfg.rules;
     const stageSelected = cfg.stages.includes(selectedStage) ? selectedStage : cfg.stages[0];
-    const insurerOptions = useMemo(() => orgs.filter((o) => o.type === 'Insurer').map((o) => ({ value: o.name, label: o.name })), [orgs]);
+    // Only organizations running this mode's workflow can be picked as its partner.
+    const insurerOptions = useMemo(() => modeOrgs.map((o) => ({ value: o.name, label: `${o.name} (${o.type})` })), [modeOrgs]);
 
-    // Load the mode's saved Business Model values whenever the mode flips.
+    // Load the mode's saved Business Model values whenever the mode (or linked org) changes.
+    // The operating model is not a free choice -- the mode fixes it.
     useEffect(() => {
-        overviewForm.setFieldsValue(cfg.overview);
-    }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+        overviewForm.setFieldsValue({
+            ...cfg.overview,
+            operatingModel: mode === 'saas' ? OPERATING_MODELS[0] : OPERATING_MODELS[1],
+            ...(linkedOrg ? { insurer: linkedOrg.name } : {}),
+        });
+    }, [mode, linkedOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const patchMode = (patch) => setWorkflow((prev) => ({ ...prev, [mode]: { ...prev[mode], ...patch } }));
 
@@ -171,8 +188,8 @@ const WorkflowConfigPage = () => {
                 {/* padding on a wrapper: antd's own .ant-form reset beats Tailwind utilities on the Form itself */}
                 <div className="p-4">
                 <Form form={overviewForm} layout="vertical" initialValues={cfg.overview}>
-                    <Form.Item name="operatingModel" label={<b>Operating Model</b>}>
-                        <Select options={OPERATING_MODELS.map((v) => ({ value: v, label: v }))} />
+                    <Form.Item name="operatingModel" label={<b>Operating Model</b>} extra={<span className="text-[11px]">Set automatically by the service model</span>}>
+                        <Select disabled options={OPERATING_MODELS.map((v) => ({ value: v, label: v }))} />
                     </Form.Item>
                     <Form.Item name="insurer" label={<b>Insurer/Partner</b>}>
                         <Select showSearch={{ optionFilterProp: 'label' }} options={insurerOptions} placeholder="ABC General Insurance" />
@@ -288,7 +305,22 @@ const WorkflowConfigPage = () => {
                     </div>
                 </div>
                 <div className="p-3 md:p-4">
-                    <div className="rounded-md px-4 py-2 text-[13px] mb-4" style={{ background: COLORS.bgBanner, color: COLORS.textPrimary }}>{cfg.banner}</div>
+                    <div className="rounded-md px-4 py-2 text-[13px] mb-2" style={{ background: COLORS.bgBanner, color: COLORS.textPrimary }}>{cfg.banner}</div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-4 py-2 text-[12px] mb-4" style={{ background: '#ECFDF3', color: '#14532D', border: '1px solid #BBF7D0' }}>
+                        <ThunderboltOutlined />
+                        {linkedOrg ? (
+                            <span>
+                                <b>{linkedOrg.name}</b> was created as <b>{linkedOrg.serviceModel}</b>, so this {MODE_LABEL[mode]} workflow is applied to it automatically.
+                            </span>
+                        ) : (
+                            <span>
+                                Automatic: every organization created as <b>{MODE_LABEL[mode]}</b> gets this workflow — currently <b>{modeOrgs.length}</b> organizations.
+                            </span>
+                        )}
+                        <button type="button" className="font-semibold underline" onClick={() => navigate(linkedOrg ? orgPath(linkedOrg.id) : ROUTES.ORGANIZATIONS)}>
+                            {linkedOrg ? 'Open organization' : 'View organizations'}
+                        </button>
+                    </div>
                     <JourneyStepper stages={cfg.stages} rules={rules} selected={stageSelected} onSelect={setSelectedStage} />
                     <p className="text-[11px] mt-2 mb-0" style={{ color: COLORS.textSecondary }}>
                         {enabledCount} of {cfg.stages.length} stages enabled · Selected: <b>{stageSelected}</b> — {cfg.rules.find((r) => r.stage === stageSelected)?.role}

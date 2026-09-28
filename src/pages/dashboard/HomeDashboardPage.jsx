@@ -7,6 +7,7 @@ import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
 import { useCollection, useAuditLog } from '../../store/DataStore';
 import { downloadCsv, formatDateTime } from '../../utils/format';
+import { getAdminScope } from '../../auth/session';
 
 const LAST_REPORT_KEY = 'superadmin_last_report_at';
 const readLastReport = () => {
@@ -29,6 +30,7 @@ const HomeDashboardPage = () => {
     const { items: orgs } = useCollection('organizations');
     const log = useAuditLog();
     const [lastReport, setLastReport] = useState(readLastReport);
+    const scope = getAdminScope();
 
     const generateReport = () => {
         downloadCsv(`System_Report_${dayjs().format('YYYY_MM_DD_HHmm')}.csv`, orgs, [
@@ -69,8 +71,8 @@ const HomeDashboardPage = () => {
                     Centralized hub for managing and reviewing motor insurance claims. Oversee lifecycle from initial submission to final resolution with architectural precision.
                 </p>
                 <div className="flex flex-wrap justify-between gap-3">
-                    <Button type="primary" onClick={() => navigate(`${ROUTES.OVERVIEW}?mode=saas`)}>As SaaS</Button>
-                    <Button type="primary" onClick={() => navigate(`${ROUTES.OVERVIEW}?mode=service-provider`)}>As Service Provider</Button>
+                    {scope !== 'serviceProvider' && <Button type="primary" onClick={() => navigate(`${ROUTES.OVERVIEW}?mode=saas`)}>As SaaS</Button>}
+                    {scope !== 'saas' && <Button type="primary" onClick={() => navigate(`${ROUTES.OVERVIEW}?mode=service-provider`)}>As Service Provider</Button>}
                 </div>
             </div>
 

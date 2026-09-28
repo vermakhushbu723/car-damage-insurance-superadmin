@@ -6,7 +6,7 @@ import ibimaLogo from '../../assets/images/ibimaLogo.svg';
 import { SIDEBAR_GROUPS, isNavItemActive } from '../../constants/navigation';
 import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
-import { clearSuperAdminSession, getSuperAdminSession } from '../../auth/session';
+import { clearSuperAdminSession, getSuperAdminSession, SCOPE_TITLE } from '../../auth/session';
 import { useResetData } from '../../store/DataStore';
 
 const NavItem = ({ item, isActive, collapsed, onNavigate }) => {
@@ -126,7 +126,7 @@ const Sidebar = ({ collapsed = false, onNavigateItem }) => {
                         {!collapsed && (
                             <>
                                 <span className="flex-1 min-w-0">
-                                    <span className="block text-[13px] font-medium leading-tight">Super Admin</span>
+                                    <span className="block text-[13px] font-medium leading-tight truncate">{SCOPE_TITLE[session?.scope ?? 'all']}</span>
                                     <span className="block text-[10px] truncate opacity-90">{session?.email || 'Superadmin@ibima.com'}</span>
                                 </span>
                                 <DownOutlined style={{ fontSize: 11 }} />

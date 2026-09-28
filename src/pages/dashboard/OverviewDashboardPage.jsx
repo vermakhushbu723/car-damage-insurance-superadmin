@@ -12,28 +12,29 @@ import Panel from '../../components/ui/Panel';
 import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
 import ModeToggle from '../../components/ui/ModeToggle';
+import { scopedMode } from '../../auth/session';
 import { DonutWithLegend, ThinLine } from '../../components/charts/Charts';
 import { useCollection } from '../../store/DataStore';
 import { COLORS } from '../../constants/theme';
 import { ROUTES, orgPath } from '../../constants/routes';
-import { SYSTEM_ALERTS, CLAIMS_TREND, PERIOD_MULTIPLIER } from '../../data/analytics';
+import { CLAIMS_TREND, PERIOD_MULTIPLIER, MODE_REVENUE } from '../../data/analytics';
 import { TODAY } from '../../data/seed';
 import { formatDate, formatNumber } from '../../utils/format';
 
 const PERIODS = Object.keys(CLAIMS_TREND).map((p) => ({ value: p, label: p }));
-const ALERT_ROUTES = { 'saas-plans': ROUTES.SAAS_PLANS, organizations: ROUTES.ORGANIZATIONS, 'user-activation': ROUTES.USER_ACTIVATION, 'saas-usage': ROUTES.SAAS_USAGE };
 const pct = (n, total) => `${String(n).padStart(2, '0')}(${total ? Math.round((n / total) * 100) : 0}%)`;
 
 /**
  * Overview dashboard, opened from the hub's "As SaaS" / "As Service
- * Provider" buttons (?mode=saas|service-provider). KPIs, subscription
- * status and the organization donut are computed live from the store;
- * the Pending Allocation table lists organizations in the selected mode.
+ * Provider" buttons (?mode=saas|service-provider). SaaS and Service
+ * Provider are run by separate super admins, so everything on the page --
+ * KPIs, alerts, status panel, donut, tables -- is scoped to the selected
+ * mode's organizations only; neither mode shows the other's details.
  */
 const OverviewDashboardPage = () => {
     const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
-    const mode = params.get('mode') === 'service-provider' ? 'serviceProvider' : 'saas';
+    const mode = scopedMode(params.get('mode') === 'service-provider' ? 'serviceProvider' : 'saas');
     const modeLabel = mode === 'saas' ? 'SaaS' : 'Service Provider';
     const { items: orgs } = useCollection('organizations');
     const { items: users } = useCollection('users');
@@ -42,51 +43,61 @@ const OverviewDashboardPage = () => {
     const [trendPeriod, setTrendPeriod] = useState('This Month');
 
     const planName = (id) => plans.find((p) => p.id === id)?.name ?? '—';
+    const isSaas = mode === 'saas';
+
+    // Only this mode's organizations (and their users) feed the page.
+    const modeOrgs = useMemo(() => orgs.filter((o) => o.serviceModel === modeLabel), [orgs, modeLabel]);
+    const modeUsers = useMemo(() => {
+        const names = new Set(modeOrgs.map((o) => o.name));
+        return users.filter((u) => names.has(u.organization));
+    }, [users, modeOrgs]);
 
     const m = useMemo(() => {
         const now = dayjs(TODAY);
         const isExpired = (o) => o.status === 'Expired' || dayjs(o.subscriptionExpiry).isBefore(now);
-        const active = orgs.filter((o) => o.status === 'Active');
-        const expiring = orgs.filter((o) => !isExpired(o) && o.status !== 'Suspended' && dayjs(o.subscriptionExpiry).diff(now, 'day') <= 30);
-        const expired = orgs.filter(isExpired);
-        const suspended = orgs.filter((o) => o.status === 'Suspended');
-        const live = orgs.filter((o) => !isExpired(o) && o.status !== 'Suspended');
         return {
-            activeSaas: active.filter((o) => o.serviceModel === 'SaaS').length,
-            activeSp: active.filter((o) => o.serviceModel === 'Service Provider').length,
-            active: active.length,
-            expiring: expiring.length,
-            expired: expired.length,
-            suspended: suspended.length,
-            saasLive: live.filter((o) => o.serviceModel === 'SaaS').length,
-            spLive: live.filter((o) => o.serviceModel === 'Service Provider').length,
+            active: modeOrgs.filter((o) => o.status === 'Active' && !isExpired(o)).length,
+            pending: modeOrgs.filter((o) => o.status === 'Pending' && !isExpired(o)).length,
+            expiring: modeOrgs.filter((o) => !isExpired(o) && o.status !== 'Suspended' && dayjs(o.subscriptionExpiry).diff(now, 'day') <= 30).length,
+            expired: modeOrgs.filter(isExpired).length,
+            suspended: modeOrgs.filter((o) => o.status === 'Suspended' && !isExpired(o)).length,
+            claims: modeOrgs.reduce((sum, o) => sum + (o.claims ?? 0), 0),
         };
-    }, [orgs]);
+    }, [modeOrgs]);
 
     const donut = [
-        { label: 'SaaS', value: m.saasLive, color: '#1F6FEB', display: pct(m.saasLive, orgs.length) },
-        { label: 'Service Provider', value: m.spLive, color: '#35B44A', display: pct(m.spLive, orgs.length) },
-        { label: 'Suspended', value: m.suspended, color: '#F03E3E', display: pct(m.suspended, orgs.length) },
-        { label: 'Expired', value: m.expired, color: '#D9D9D9', display: pct(m.expired, orgs.length) },
+        { label: 'Active', value: m.active, color: isSaas ? '#1F6FEB' : '#35B44A', display: pct(m.active, modeOrgs.length) },
+        { label: 'Pending', value: m.pending, color: '#F59E0B', display: pct(m.pending, modeOrgs.length) },
+        { label: 'Suspended', value: m.suspended, color: '#F03E3E', display: pct(m.suspended, modeOrgs.length) },
+        { label: 'Expired', value: m.expired, color: '#D9D9D9', display: pct(m.expired, modeOrgs.length) },
     ];
 
-    const allocationRows = useMemo(
-        () => orgs.filter((o) => o.serviceModel === modeLabel).sort((a, b) => b.createdOn.localeCompare(a.createdOn)),
-        [orgs, modeLabel],
-    );
+    const term = isSaas ? 'Subscription' : 'Contract';
+    const inactiveUsers = modeUsers.filter((u) => u.status !== 'Active').length;
+    const alerts = [
+        { id: 'expiring', icon: 'warning', text: `${m.expiring} ${modeLabel} ${term}s Will Expire In 30 Days`, to: isSaas ? ROUTES.SAAS_PLANS : ROUTES.ORGANIZATIONS },
+        { id: 'expired', icon: 'info', text: `${m.expired} ${modeLabel} Organization${m.expired === 1 ? ' Has' : 's Have'} Expired ${term}`, to: ROUTES.ORGANIZATIONS },
+        { id: 'inactive', icon: 'warning', text: `${inactiveUsers} Users Have Inactive Status For More Then 30 Days`, to: ROUTES.USER_ACTIVATION },
+        isSaas
+            ? { id: 'storage', icon: 'info', text: 'Storage Usage Exceeded 80% For 3 Organizations', to: ROUTES.SAAS_USAGE }
+            : { id: 'pending', icon: 'info', text: `${m.pending} Service Provider IDs Are Pending Activation`, to: ROUTES.ORGANIZATIONS },
+    ];
+
+    const allocationRows = useMemo(() => [...modeOrgs].sort((a, b) => b.createdOn.localeCompare(a.createdOn)), [modeOrgs]);
 
     const topOrgs = useMemo(
-        () => [...orgs].sort((a, b) => b.claims - a.claims).slice(0, 5).map((o) => ({ ...o, periodClaims: Math.round(o.claims * PERIOD_MULTIPLIER[topPeriod]) })),
-        [orgs, topPeriod],
+        () => [...modeOrgs].sort((a, b) => b.claims - a.claims).slice(0, 5).map((o) => ({ ...o, periodClaims: Math.round(o.claims * PERIOD_MULTIPLIER[topPeriod]) })),
+        [modeOrgs, topPeriod],
     );
 
     const stats = [
-        { label: 'Total Organizations', value: orgs.length, icon: <AppstoreOutlined />, tone: 'blue', trend: '12%', to: ROUTES.ORGANIZATIONS },
-        { label: 'Active SaaS', value: m.activeSaas, icon: <SafetyCertificateOutlined />, tone: 'green', trend: '8%', to: ROUTES.ORGANIZATIONS },
-        { label: 'Active Service Provider', value: m.activeSp, icon: <ToolOutlined />, tone: 'indigo', trend: '10%', to: ROUTES.ORGANIZATIONS },
-        { label: 'Total Users', value: formatNumber(users.length), icon: <TeamOutlined />, tone: 'orange', trend: '15%', to: ROUTES.USERS },
-        { label: 'Total Claims', value: '86,420', icon: <ShoppingOutlined />, tone: 'red', trend: '10%', to: ROUTES.CLAIM_REPORT },
-        { label: 'Total Revenue(MTD)', value: '1,24,85,000', icon: <DollarOutlined />, tone: 'teal', trend: '9%', to: ROUTES.SAAS_PLANS },
+        { label: `Total ${modeLabel} Organizations`, value: modeOrgs.length, icon: <AppstoreOutlined />, tone: 'blue', trend: '12%', to: ROUTES.ORGANIZATIONS },
+        isSaas
+            ? { label: 'Active SaaS', value: m.active, icon: <SafetyCertificateOutlined />, tone: 'green', trend: '8%', to: ROUTES.ORGANIZATIONS }
+            : { label: 'Active Service Provider', value: m.active, icon: <ToolOutlined />, tone: 'indigo', trend: '10%', to: ROUTES.ORGANIZATIONS },
+        { label: 'Total Users', value: formatNumber(modeUsers.length), icon: <TeamOutlined />, tone: 'orange', trend: '15%', to: ROUTES.USERS },
+        { label: 'Total Claims', value: formatNumber(m.claims), icon: <ShoppingOutlined />, tone: 'red', trend: '10%', to: ROUTES.CLAIM_REPORT },
+        { label: isSaas ? 'Total Revenue(MTD)' : 'Service Fee Revenue(MTD)', value: MODE_REVENUE[mode], icon: <DollarOutlined />, tone: 'teal', trend: '9%', to: isSaas ? ROUTES.SAAS_PLANS : ROUTES.ORGANIZATIONS },
     ];
 
     return (
@@ -96,26 +107,26 @@ const OverviewDashboardPage = () => {
                 extra={<ModeToggle value={mode} onChange={(v) => setParams({ mode: v === 'saas' ? 'saas' : 'service-provider' })} />}
             />
 
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-3">
                 {stats.map((s) => <StatCard key={s.label} {...s} onClick={() => navigate(s.to)} />)}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[1.05fr_0.8fr_1.3fr] gap-3 mb-3">
                 <Panel title="System Alerts" extra={<button type="button" className="text-xs" style={{ color: COLORS.primary }} onClick={() => navigate(ROUTES.AUDIT_LOGS)}>View All</button>}>
                     <ul className="list-none p-0 m-0 flex flex-col gap-3.5">
-                        {SYSTEM_ALERTS.map((a) => (
+                        {alerts.map((a) => (
                             <li key={a.id} className="flex items-start gap-2 text-xs">
                                 {a.icon === 'warning'
                                     ? <WarningOutlined style={{ color: '#B45309', fontSize: 15, marginTop: 1 }} />
                                     : <InfoCircleOutlined style={{ color: COLORS.primary, fontSize: 15, marginTop: 1 }} />}
                                 <span className="flex-1" style={{ color: COLORS.textPrimary }}>{a.text}</span>
-                                <button type="button" className="shrink-0 text-[11px]" style={{ color: COLORS.primary }} onClick={() => navigate(ALERT_ROUTES[a.target])}>View Details</button>
+                                <button type="button" className="shrink-0 text-[11px]" style={{ color: COLORS.primary }} onClick={() => navigate(a.to)}>View Details</button>
                             </li>
                         ))}
                     </ul>
                 </Panel>
 
-                <Panel title="SaaS Subscription Status">
+                <Panel title={isSaas ? 'SaaS Subscription Status' : 'Service Provider Contract Status'}>
                     <div className="flex flex-col gap-4">
                         {[
                             ['Active', m.active, COLORS.success],
@@ -123,7 +134,7 @@ const OverviewDashboardPage = () => {
                             ['Expired', m.expired, COLORS.danger],
                             ['Suspended', m.suspended, COLORS.textPrimary],
                         ].map(([label, value, color]) => (
-                            <button key={label} type="button" onClick={() => navigate(ROUTES.SAAS_PLANS)} className="flex items-center justify-between text-[13px] font-semibold">
+                            <button key={label} type="button" onClick={() => navigate(isSaas ? ROUTES.SAAS_PLANS : ROUTES.ORGANIZATIONS)} className="flex items-center justify-between text-[13px] font-semibold">
                                 <span style={{ color }}>{label}</span>
                                 <span style={{ color: COLORS.textPrimary }}>{String(value).padStart(2, '0')}</span>
                             </button>
@@ -132,7 +143,7 @@ const OverviewDashboardPage = () => {
                 </Panel>
 
                 <Panel title="Organization Overview" className="lg:col-span-2 xl:col-span-1">
-                    <DonutWithLegend segments={donut} centerValue={orgs.length} size={150} onSegmentClick={() => navigate(ROUTES.ORGANIZATIONS)} />
+                    <DonutWithLegend segments={donut} centerValue={modeOrgs.length} size={150} onSegmentClick={() => navigate(ROUTES.ORGANIZATIONS)} />
                 </Panel>
             </div>
 
@@ -155,7 +166,7 @@ const OverviewDashboardPage = () => {
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-w-[1000px]">
-                <Panel title="Top 5 Organzation By Claims" extra={<Select size="small" value={topPeriod} onChange={setTopPeriod} options={PERIODS} style={{ width: 118 }} />}>
+                <Panel title={`Top 5 ${modeLabel} Organzation By Claims`} extra={<Select size="small" value={topPeriod} onChange={setTopPeriod} options={PERIODS} style={{ width: 118 }} />}>
                     <ul className="list-none p-0 m-0 flex flex-col gap-2.5">
                         {topOrgs.map((o) => (
                             <li key={o.id}>

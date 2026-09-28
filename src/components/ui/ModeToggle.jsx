@@ -1,15 +1,23 @@
 import React from 'react';
 import { COLORS } from '../../constants/theme';
+import { getAdminScope } from '../../auth/session';
 
 const OPTIONS = [
     { value: 'saas', label: 'SaaS Mode' },
     { value: 'serviceProvider', label: 'As Service Provider' },
 ];
 
-/** "SaaS Mode | As Service Provider" two-segment toggle (Workflow + Organization forms). */
-const ModeToggle = ({ value, onChange }) => (
+/**
+ * "SaaS Mode | As Service Provider" two-segment toggle (Dashboard, Workflow,
+ * Organization forms). A SaaS-only or Service-Provider-only super admin
+ * sees just their own segment.
+ */
+const ModeToggle = ({ value, onChange }) => {
+    const scope = getAdminScope();
+    const options = scope === 'all' ? OPTIONS : OPTIONS.filter((o) => o.value === scope);
+    return (
     <div className="inline-flex rounded-md overflow-hidden shrink-0" style={{ border: `1px solid ${COLORS.border}`, background: '#F1F5F9' }}>
-        {OPTIONS.map((o) => {
+        {options.map((o) => {
             const active = value === o.value;
             return (
                 <button
@@ -24,6 +32,7 @@ const ModeToggle = ({ value, onChange }) => (
             );
         })}
     </div>
-);
+    );
+};
 
 export default ModeToggle;

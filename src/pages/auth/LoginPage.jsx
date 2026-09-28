@@ -6,7 +6,7 @@ import loginImage from '../../assets/images/loginHero.jpg';
 import ibimaLogo from '../../assets/images/ibimaLogo.svg';
 import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
-import { setSuperAdminSession } from '../../auth/session';
+import { setSuperAdminSession, scopeForLogin } from '../../auth/session';
 
 const CAPTCHA_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
 const generateCaptcha = (length = 5) =>
@@ -101,7 +101,7 @@ const LoginPage = () => {
         // UI-only demo login (no backend yet): any valid-looking credentials
         // + a matching captcha get you in. Swap for a real auth call later.
         setTimeout(() => {
-            setSuperAdminSession({ email: EMAIL_RE.test(id) ? id : 'Superadmin@ibima.com', loggedInAt: new Date().toISOString() });
+            setSuperAdminSession({ email: EMAIL_RE.test(id) ? id : 'Superadmin@ibima.com', scope: scopeForLogin(id), loggedInAt: new Date().toISOString() });
             navigate(ROUTES.HOME, { replace: true });
         }, 400);
     };
