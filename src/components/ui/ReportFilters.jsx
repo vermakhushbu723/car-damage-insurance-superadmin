@@ -9,7 +9,11 @@ import { COLORS } from '../../constants/theme';
  * Export option calls `onExport(format)`.
  */
 const ReportFilters = ({ range, onRangeChange, filters, values, onChange, onExport, onRefresh, refreshing }) => (
-    <div className="filter-bar grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))_auto] gap-x-2 gap-y-2 items-end mb-3">
+    // --filter-cols = dropdowns + Export, so the xl row fits however many filters a page passes
+    <div
+        className="filter-bar grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-[minmax(0,1.6fr)_repeat(var(--filter-cols),minmax(0,1fr))_auto] gap-x-2 gap-y-2 items-end mb-3"
+        style={{ '--filter-cols': filters.length + 1 }}
+    >
         <div className="col-span-2 sm:col-span-1">
             <span className="block text-[13px] font-semibold mb-1" style={{ color: COLORS.textPrimary }}>Date Range</span>
             <DatePicker.RangePicker value={range} onChange={onRangeChange} format="DD MMM YY" placeholder={['01 Sep 25', '04 Sep 25']} allowClear className="w-full" />

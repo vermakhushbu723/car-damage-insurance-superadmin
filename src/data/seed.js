@@ -184,6 +184,24 @@ export const CLAIM_STAGES = ['AI ILA', 'Survey', 'ILA', 'FLA', 'Settled', 'Rejec
 export const REGIONS = ['North', 'East', 'West', 'South', 'Central'];
 export const CLAIM_TYPES = ['Motor Vehicle', 'Two Wheeler', 'Commercial Vehicle'];
 export const HANDLERS = ['Rajive', 'Suresh', 'Kavita', 'Arjun', 'Meera'];
+export const PRODUCT_TYPES = ['Pvt Car', 'Commercial Vehicle', 'Two Wheelers'];
+const REGION_STATES = {
+    North: ['Delhi', 'Punjab', 'Haryana', 'Uttar Pradesh', 'Rajasthan'],
+    East: ['West Bengal', 'Odisha', 'Bihar', 'Assam', 'Jharkhand'],
+    West: ['Maharashtra', 'Gujarat', 'Goa'],
+    South: ['Karnataka', 'Tamil Nadu', 'Kerala', 'Telangana', 'Andhra Pradesh'],
+    Central: ['Madhya Pradesh', 'Chhattisgarh'],
+};
+const PRODUCT_BY_CLAIM_TYPE = { 'Motor Vehicle': 'Pvt Car', 'Two Wheeler': 'Two Wheelers', 'Commercial Vehicle': 'Commercial Vehicle' };
+export const CLAIM_STATES = [...new Set(Object.values(REGION_STATES).flat())].sort();
+
+/** Fills a claim's `state` (inside its region) and `productType` (from its claim type) when missing. */
+export const withClaimLocation = (c, i) => ({
+    ...c,
+    state: c.state ?? REGION_STATES[c.region]?.[i % REGION_STATES[c.region].length] ?? 'Maharashtra',
+    productType: c.productType ?? PRODUCT_BY_CLAIM_TYPE[c.claimType] ?? 'Pvt Car',
+});
+
 export const SEED_CLAIMS = Array.from({ length: 42 }, (_, i) => ({
     id: `CLM-${25648 + i}`,
     customer: i < 5 ? 'Rohit Sharma' : `${pick(FIRST)} ${pick(LAST)}`,
@@ -196,7 +214,7 @@ export const SEED_CLAIMS = Array.from({ length: 42 }, (_, i) => ({
     branch: pick(BRANCHES),
     region: pick(REGIONS),
     organization: pick(SEED_ORGANIZATIONS.slice(0, 10)).name,
-}));
+})).map(withClaimLocation);
 
 // ---------------------------------------------------------------------
 // Audit logs

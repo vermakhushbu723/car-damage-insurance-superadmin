@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
     SEED_ORGANIZATIONS, SEED_USERS, SEED_ADMIN_USERS, SEED_SERVICE_MODELS, SEED_PLANS, SEED_CLAIMS,
-    SEED_AUDIT_LOGS, SEED_DOWNLOADS, SEED_INTEGRATIONS, SEED_SYSTEM,
+    SEED_AUDIT_LOGS, SEED_DOWNLOADS, SEED_INTEGRATIONS, SEED_SYSTEM, withClaimLocation,
 } from '../data/seed';
 import { WORKFLOW_MODES, buildPermissionMatrix } from '../data/workflow';
 import { ADMIN_ROLES } from '../data/seed';
@@ -33,10 +33,22 @@ const buildSeed = () => ({
     },
 });
 
+// Backfills fields added after a browser already saved its data, so
+// existing sessions keep their edits instead of being reset to the seed.
+const migrate = (state) => ({
+    ...state,
+    claims: state.claims.map(withClaimLocation),
+    // Older saves seeded every stage as disabled ("0 of 7 stages enabled").
+    workflow: Object.fromEntries(Object.entries(state.workflow).map(([mode, cfg]) => [
+        mode,
+        cfg.rules.every((r) => !r.enabled) ? { ...cfg, rules: WORKFLOW_MODES[mode]?.rules ?? cfg.rules } : cfg,
+    ])),
+});
+
 const loadState = () => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) return { ...buildSeed(), ...JSON.parse(raw) };
+        if (raw) return migrate({ ...buildSeed(), ...JSON.parse(raw) });
     } catch {
         /* corrupt/blocked storage -- fall back to seed */
     }

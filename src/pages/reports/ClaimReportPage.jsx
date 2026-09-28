@@ -14,7 +14,7 @@ import DetailsModal from '../../components/ui/DetailsModal';
 import ReportFilters from '../../components/ui/ReportFilters';
 import { AreaTrend, DonutWithLegend, SimpleBars } from '../../components/charts/Charts';
 import { useCollection, useAuditLog } from '../../store/DataStore';
-import { BRANCHES, REGIONS, CLAIM_TYPES, CLAIM_STAGES, HANDLERS } from '../../data/seed';
+import { BRANCHES, REGIONS, CLAIM_STATES, PRODUCT_TYPES, CLAIM_STAGES, HANDLERS } from '../../data/seed';
 import { TREND_AUG, SETTLEMENT_BY_REGION, CLAIM_REPORT_STATS } from '../../data/analytics';
 import { ROUTES } from '../../constants/routes';
 import { COLORS } from '../../constants/theme';
@@ -23,21 +23,22 @@ import { formatDate, formatNumber, downloadCsv } from '../../utils/format';
 const FILTERS = [
     { key: 'branch', label: 'Branch', allLabel: 'All Branches', options: BRANCHES },
     { key: 'region', label: 'Region', allLabel: 'All Regions', options: REGIONS },
-    { key: 'claimType', label: 'Claim Type', allLabel: 'All Types', options: CLAIM_TYPES },
+    { key: 'state', label: 'State', allLabel: 'All States', options: CLAIM_STATES },
+    { key: 'productType', label: 'Product Type', allLabel: 'All Products', options: PRODUCT_TYPES },
     { key: 'status', label: 'Status', allLabel: 'All Status', options: CLAIM_STAGES },
     { key: 'handler', label: 'Handler', allLabel: 'All', options: HANDLERS },
 ];
-const EMPTY = { branch: 'All', region: 'All', claimType: 'All', status: 'All', handler: 'All' };
+const EMPTY = { branch: 'All', region: 'All', state: 'All', productType: 'All', status: 'All', handler: 'All' };
 const STAT_ICONS = { total: <DatabaseOutlined />, new: <FileAddOutlined />, survey: <LoadingOutlined />, assessment: <SnippetsOutlined />, settlement: <WalletOutlined />, rejected: <CloseOutlined /> };
 const EXPORT_COLUMNS = [
-    { title: 'Claim ID', dataIndex: 'id' }, { title: 'Customer Name', dataIndex: 'customer' }, { title: 'Claim Type', dataIndex: 'claimType' },
+    { title: 'Claim ID', dataIndex: 'id' }, { title: 'Customer Name', dataIndex: 'customer' }, { title: 'Product Type', dataIndex: 'productType' },
     { title: 'Handler', dataIndex: 'handler' }, { title: 'Amount', dataIndex: 'amount' }, { title: 'SLA', value: (r) => `${r.slaDays} Days` },
-    { title: 'Status', dataIndex: 'status' }, { title: 'Branch', dataIndex: 'branch' }, { title: 'Region', dataIndex: 'region' },
+    { title: 'Status', dataIndex: 'status' }, { title: 'Branch', dataIndex: 'branch' }, { title: 'Region', dataIndex: 'region' }, { title: 'State', dataIndex: 'state' },
     { title: 'Intimation Date', value: (r) => formatDate(r.intimationDate) },
 ];
 
 /**
- * Claim Report -- filters (date range + 5 dropdowns) drive the Claim Details
+ * Claim Report -- filters (date range + 6 dropdowns) drive the Claim Details
  * table and its CSV export; Refresh Report re-applies the draft filters.
  * KPI tiles and charts are platform aggregates (data/analytics.js).
  */
@@ -129,12 +130,13 @@ const ClaimReportPage = () => {
                 extra={<span className="text-xs text-slate-500">{rows.length} claims</span>}
                 dataSource={rows}
                 pageSize={5}
-                scrollX={1100}
+                scrollX={1200}
                 locale={{ emptyText: 'No claims match these filters.' }}
                 columns={[
                     { title: 'Claim ID', dataIndex: 'id' },
                     { title: 'Customer Name', dataIndex: 'customer' },
-                    { title: 'Claim Type', dataIndex: 'claimType' },
+                    { title: 'Product Type', dataIndex: 'productType' },
+                    { title: 'State', dataIndex: 'state' },
                     { title: 'Handler', dataIndex: 'handler' },
                     { title: 'Ammount', dataIndex: 'amount', align: 'center', render: formatNumber, sorter: (a, b) => a.amount - b.amount },
                     { title: 'SLA', dataIndex: 'slaDays', align: 'center', render: (d) => `${d} Days` },
@@ -151,12 +153,13 @@ const ClaimReportPage = () => {
                 items={viewing ? [
                     { label: 'Customer', value: viewing.customer },
                     { label: 'Status', value: <StatusTag status={viewing.status} size="sm" /> },
-                    { label: 'Claim Type', value: viewing.claimType },
+                    { label: 'Product Type', value: viewing.productType },
                     { label: 'Amount', value: `₹ ${formatNumber(viewing.amount)}` },
                     { label: 'Handler', value: viewing.handler },
                     { label: 'SLA', value: `${viewing.slaDays} Days` },
                     { label: 'Branch', value: viewing.branch },
                     { label: 'Region', value: viewing.region },
+                    { label: 'State', value: viewing.state },
                     { label: 'Organization', value: viewing.organization },
                     { label: 'Intimation Date', value: formatDate(viewing.intimationDate) },
                 ] : []}

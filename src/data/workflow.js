@@ -3,7 +3,10 @@
 // toggle; every stat, stepper node, banner, stage rule and default form
 // value on that screen comes from here.
 
-const rule = (stage, role, systemRule) => ({ stage, role, systemRule, enabled: false, view: false, edit: false, approve: false });
+// The workflow is assigned automatically by the organization's service model,
+// so every stage starts enabled; approve rights only on decision stages.
+const APPROVE_STAGES = ['FLA', 'Recommendation', 'Approval', 'Settlement', 'Fee Bill'];
+const rule = (stage, role, systemRule) => ({ stage, role, systemRule, enabled: true, view: true, edit: true, approve: APPROVE_STAGES.includes(stage) });
 
 const TRIGGERS = [
     { id: 't1', trigger: 'Claim Registered', stage: 'Intimation', recipient: 'Insure/Handler', channels: 'Whatsapp+email', status: 'Active' },
@@ -66,6 +69,11 @@ export const WORKFLOW_MODES = {
 };
 
 export const OPERATING_MODELS = ['SaaS-Insurer operates claim', 'IBima assist service workflow'];
+
+// Mode key <-> the organization's `serviceModel` value.
+export const modeOfOrg = (org) => (org?.serviceModel === 'Service Provider' ? 'serviceProvider' : 'saas');
+export const SERVICE_MODEL_OF_MODE = { saas: 'SaaS', serviceProvider: 'Service Provider' };
+export const MODE_LABEL = { saas: 'SaaS', serviceProvider: 'Service Provider' };
 export const ADMIN_PROFILES = ['HO/National Manager', 'Regional Manager', 'Branch Manager'];
 export const FEE_BILL_MODELS = ['Automatic-based on product model', 'Manual entry', 'Not Applicable-SaaS'];
 export const CHANNEL_OPTIONS = ['Whatsapp', 'email', 'SMS', 'Letter', 'In - app'];
