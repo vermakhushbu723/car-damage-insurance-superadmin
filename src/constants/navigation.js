@@ -23,7 +23,7 @@ import { ROUTES } from './routes';
 export const SIDEBAR_GROUPS = [
     {
         title: null,
-        items: [{ key: 'dashboard', label: 'Dashboard', icon: AppstoreOutlined, path: ROUTES.HOME }],
+        items: [{ key: 'dashboard', label: 'Dashboard', icon: AppstoreOutlined, path: ROUTES.OVERVIEW }],
     },
     {
         title: 'ORGANIZATIONS MANAGEMENT',

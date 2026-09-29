@@ -112,7 +112,15 @@ const OrganizationsPage = () => {
                 scrollX={880}
                 locale={{ emptyText: 'No organizations match these filters.' }}
                 columns={[
-                    { title: 'Organzation Name', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
+                    {
+                        title: 'Organzation Name', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name),
+                        render: (n, r) => (
+                            <span>
+                                {n}
+                                {r.idType && <span className="ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: r.idType === 'Pilot' ? '#FEF3C7' : '#DBEAFE', color: r.idType === 'Pilot' ? '#92400E' : '#1E40AF' }}>{r.idType}</span>}
+                            </span>
+                        ),
+                    },
                     { title: 'Type', dataIndex: 'type' },
                     { title: 'Users', dataIndex: 'users', align: 'center', sorter: (a, b) => a.users - b.users },
                     {

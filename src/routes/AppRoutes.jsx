@@ -3,9 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import RequireAuth from '../auth/RequireAuth';
 import AppLayout from '../components/layout/AppLayout';
+import { scopedMode } from '../auth/session';
 
 import LoginPage from '../pages/auth/LoginPage';
-import HomeDashboardPage from '../pages/dashboard/HomeDashboardPage';
 import OverviewDashboardPage from '../pages/dashboard/OverviewDashboardPage';
 
 import OrganizationsPage from '../pages/organizations/OrganizationsPage';
@@ -44,12 +44,18 @@ const LEGACY_REDIRECTS = [
     ['/support', ROUTES.HOME],
 ];
 
+// "/dashboard" (login landing, logo, old links) opens the overview dashboard
+// in the signed-in super admin's mode: SaaS, or Service Provider for the SP admin.
+const DashboardHome = () => (
+    <Navigate to={`${ROUTES.OVERVIEW}?mode=${scopedMode('saas') === 'serviceProvider' ? 'service-provider' : 'saas'}`} replace />
+);
+
 const AppRoutes = () => (
     <Routes>
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
 
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-            <Route path={ROUTES.HOME} element={<HomeDashboardPage />} />
+            <Route path={ROUTES.HOME} element={<DashboardHome />} />
             <Route path={ROUTES.OVERVIEW} element={<OverviewDashboardPage />} />
 
             <Route path={ROUTES.ORGANIZATIONS} element={<OrganizationsPage />} />

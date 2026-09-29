@@ -38,6 +38,10 @@ const buildSeed = () => ({
 const migrate = (state) => ({
     ...state,
     claims: state.claims.map(withClaimLocation),
+    // IDs made with "Create Pilot ID" used to be saved as Pending; a new ID is Active now.
+    organizations: state.organizations.map((o) => (
+        !o.idType && o.status === 'Pending' && Object.keys(o.form ?? {}).length ? { ...o, status: 'Active', idType: 'Pilot' } : o
+    )),
     // Older saves seeded every stage as disabled ("0 of 7 stages enabled").
     workflow: Object.fromEntries(Object.entries(state.workflow).map(([mode, cfg]) => [
         mode,

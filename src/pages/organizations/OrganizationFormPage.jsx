@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Form, Select, Button, App, Result } from 'antd';
 import { ApartmentOutlined } from '@ant-design/icons';
+import CredentialsModal from '../../components/organizations/CredentialsModal';
 import dayjs from 'dayjs';
 import FormSection from '../../components/forms/FormSection';
 import StepNav from '../../components/forms/StepNav';
@@ -9,7 +10,7 @@ import FieldGrid from '../../components/forms/FieldRenderer';
 import useScrollSpy from '../../components/forms/useScrollSpy';
 import ModeToggle from '../../components/ui/ModeToggle';
 import { scopedMode } from '../../auth/session';
-import { useCollection, useStoreValue, useAuditLog, newId } from '../../store/DataStore';
+import { useCollection, useStoreValue, useAuditLog } from '../../store/DataStore';
 import { ORG_FORMS, buildPlanSettingsSection, PLAN_SETTINGS_DEFAULTS } from '../../data/orgForms';
 import { MODE_LABEL } from '../../data/workflow';
 import { ROUTES } from '../../constants/routes';
@@ -22,7 +23,9 @@ const TYPE_OPTIONS = Object.keys(ORG_FORMS).map((t) => ({ value: t, label: t }))
  * dropdown swaps the whole form (Insurer / Broker / Surveyor / Workshop,
  * see data/orgForms.js). On /organizations/:id the form opens read-only
  * with the saved values; "Edit & Modify Profile" unlocks it.
- * "Create Pilot ID" saves the org as Pending, "Create Working ID" as Active.
+ * "Create Pilot ID" / "Create Working ID" both create an Active org (the
+ * choice is kept as `idType`) and then show the generated Organization ID,
+ * admin login ID and temporary password in CredentialsModal.
  * The last section, PLAN & SETTINGS, finalizes the org's plan, validity,
  * permissions, modules and channels at creation; its claim workflow is
  * assigned automatically from the SaaS / Service Provider mode.
@@ -47,6 +50,7 @@ const OrganizationFormPage = () => {
     const [mode, setMode] = useState(existing ? (existing.serviceModel === 'Service Provider' ? 'serviceProvider' : 'saas') : scopedMode('saas'));
     const [editing, setEditing] = useState(!isView);
     const [submitting, setSubmitting] = useState(null);
+    const [credentials, setCredentials] = useState(null); // shown after a new ID is created
 
     const baseConfig = ORG_FORMS[type];
     const [sectionRefs, activeSection, scrollTo] = useScrollSpy([type]);
@@ -117,12 +121,15 @@ const OrganizationFormPage = () => {
         try {
             const values = await form.validateFields();
             setSubmitting(kind);
-            const status = kind === 'working' ? 'Active' : 'Pending';
+            // A new ID is live straight away; editing keeps whatever status the org already has.
+            const status = existing ? existing.status : 'Active';
+            const idType = kind === 'working' ? 'Working' : 'Pilot';
             const expiry = dayjs(values.subscriptionStart).add(values.validityMonths, 'month');
             const payload = {
                 name: values[config.nameField],
                 type,
                 status,
+                idType,
                 serviceModel: mode === 'saas' ? 'SaaS' : 'Service Provider',
                 // Finalized at ID creation (PLAN & SETTINGS):
                 plan: values.plan,
@@ -140,20 +147,32 @@ const OrganizationFormPage = () => {
             if (existing) {
                 update(existing.id, payload);
                 log('Updated', 'Organizations');
-                message.success(`${payload.name} updated (${status}).`);
+                message.success(`${payload.name} updated (${idType} ID).`);
+                navigate(ROUTES.ORGANIZATIONS);
             } else {
-                const orgId = newId('ORG');
+                const orgId = nextOrgId(orgs);
+                const loginId = type === 'Surveyor' ? `${orgId}-USR` : `${orgId}-ADM`;
                 add({
                     id: orgId,
                     users: 1,
                     createdOn: new Date().toISOString(),
                     claims: 0,
+                    adminLoginId: loginId,
                     ...payload,
                 });
                 log('Created', 'Organizations');
-                message.success(`${kind === 'working' ? 'Working' : 'Pilot'} ID created for ${payload.name} — ${MODE_LABEL[mode]} workflow assigned automatically.`);
+                setCredentials({
+                    orgId,
+                    name: payload.name,
+                    type,
+                    idType,
+                    serviceModel: payload.serviceModel,
+                    loginId,
+                    email: values.adminEmail || values.officialEmail || '',
+                    password: values.tempPassword || generatePassword(),
+                    validTill: dayjs(payload.subscriptionExpiry).format('DD MMM YYYY'),
+                });
             }
-            navigate(ROUTES.ORGANIZATIONS);
         } catch (err) {
             if (err?.errorFields?.length) {
                 message.error('Please fix the highlighted fields.');
@@ -223,8 +242,23 @@ const OrganizationFormPage = () => {
                     </div>
                 </div>
             </div>
+
+            <CredentialsModal data={credentials} onClose={() => navigate(ROUTES.ORGANIZATIONS)} />
         </div>
     );
+};
+
+// Next sequential ID after the highest existing ORG-<number> (ORG-1001, ORG-1002, ...).
+const nextOrgId = (orgs) => {
+    const max = orgs.reduce((m, o) => Math.max(m, Number(/^ORG-(\d+)$/.exec(o.id)?.[1] ?? 0)), 1000);
+    return `ORG-${max + 1}`;
+};
+
+// Temporary password when the form's own temp password was left empty.
+const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%';
+    const bytes = crypto.getRandomValues(new Uint32Array(12));
+    return Array.from(bytes, (b) => chars[b % chars.length]).join('');
 };
 
 // Keyed by :id so moving between two organizations' pages starts from a fresh form state.
