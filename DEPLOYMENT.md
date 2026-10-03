@@ -5,7 +5,8 @@
 | | |
 |---|---|
 | VPS | 200.234.37.130, Ubuntu, user `deploy` (same box as `ai-damage-assessment-service` / `car-damage-insurance-web-app` -- see those repos' own `DEPLOYMENT.md`) |
-| Site | https://superadmin.ibimaassist.online → nginx → static `dist/` build (this is a pure client-side React SPA, no backend/PM2 process needed) |
+| Site | https://superadmin.ibimaassist.online → nginx → static `dist/` build |
+| API | same domain, `/api/` → nginx → `superadmin-service` on 127.0.0.1:8030 (lives in the `ai-damage-assessment-service` repo, PM2 `superadmin-service`; setup in that repo's DEPLOYMENT.md) |
 | SSL | Let's Encrypt via `certbot --nginx`, auto-renews (reused the VPS's existing certbot account, no new email registration needed) |
 | Repo on VPS | `/home/deploy/car-damage-insurance-superadmin` |
 | nginx site | `/etc/nginx/sites-available/superadmin` (symlinked into `sites-enabled`) |
@@ -37,6 +38,14 @@ server {
 
     location / {
         try_files $uri $uri/ /index.html;   # SPA fallback for React Router
+    }
+    # Backend: ai-damage-assessment-service/superadmin-service
+    location /api/ {
+        proxy_pass http://127.0.0.1:8030;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
     location /assets/ {
         expires 30d;

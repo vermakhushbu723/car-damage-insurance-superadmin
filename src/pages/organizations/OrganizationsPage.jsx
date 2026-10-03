@@ -7,7 +7,8 @@ import StatCard from '../../components/ui/StatCard';
 import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
 import { ViewButton } from '../../components/ui/RowActions';
-import { useCollection, useAuditLog } from '../../store/DataStore';
+import { useCollection } from '../../store/DataStore';
+import { organizationsApi } from '../../api/superadminApi';
 import { ROUTES, orgPath } from '../../constants/routes';
 import { ORG_TYPES, ORG_STATUSES, SERVICE_MODES } from '../../data/seed';
 import { formatDate, matchesQuery } from '../../utils/format';
@@ -26,8 +27,7 @@ const opts = (list, allLabel) => [{ value: 'All', label: allLabel }, ...list.map
 const OrganizationsPage = () => {
     const navigate = useNavigate();
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: allOrgs, update } = useCollection('organizations');
+    const { items: allOrgs, loading, upsert, error } = useCollection('organizations');
     // A SaaS / Service Provider super admin only manages their own organizations.
     const scope = getAdminScope();
     const orgs = useMemo(() => (scope === 'all' ? allOrgs : allOrgs.filter((o) => o.serviceModel === SERVICE_MODEL_OF_MODE[scope])), [allOrgs, scope]);
@@ -53,10 +53,17 @@ const OrganizationsPage = () => {
         setApplied(next);
     };
 
-    const setField = (id, field, value, label) => {
-        update(id, { [field]: value });
-        log('Updated', 'Organizations');
-        message.success(`${label} updated.`);
+    const [saving, setSaving] = useState(null); // `${id}:${field}` while a change is being saved
+    const setField = async (id, field, value, label) => {
+        setSaving(`${id}:${field}`);
+        try {
+            upsert(await organizationsApi.update(id, { [field]: value }));
+            message.success(`${label} updated.`);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(null);
+        }
     };
 
     const moreFilters = (
@@ -108,9 +115,10 @@ const OrganizationsPage = () => {
 
             <DataTable
                 dataSource={rows}
+                loading={loading}
                 pageSize={8}
                 scrollX={880}
-                locale={{ emptyText: 'No organizations match these filters.' }}
+                locale={{ emptyText: error ? `Could not load organizations: ${error}` : orgs.length ? 'No organizations match these filters.' : 'No organizations yet. Click "+ Add Organizations" to create the first one.' }}
                 columns={[
                     {
                         title: 'Organzation Name', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name),
@@ -126,13 +134,13 @@ const OrganizationsPage = () => {
                     {
                         title: 'Staus', dataIndex: 'status', align: 'center', width: 150,
                         render: (s, r) => (editing
-                            ? <Select size="small" value={s} style={{ width: 120 }} options={ORG_STATUSES.map((v) => ({ value: v, label: v }))} onChange={(v) => setField(r.id, 'status', v, 'Status')} />
+                            ? <Select size="small" value={s} loading={saving === `${r.id}:status`} disabled={saving === `${r.id}:status`} style={{ width: 120 }} options={ORG_STATUSES.map((v) => ({ value: v, label: v }))} onChange={(v) => setField(r.id, 'status', v, 'Status')} />
                             : <StatusTag status={s} />),
                     },
                     {
                         title: 'Subscription', dataIndex: 'plan', width: 160,
                         render: (p, r) => (editing
-                            ? <Select size="small" value={p} style={{ width: 130 }} options={planOptions} onChange={(v) => setField(r.id, 'plan', v, 'Subscription')} />
+                            ? <Select size="small" value={p} loading={saving === `${r.id}:plan`} disabled={saving === `${r.id}:plan`} style={{ width: 130 }} options={planOptions} onChange={(v) => setField(r.id, 'plan', v, 'Subscription')} />
                             : planName(p)),
                     },
                     { title: 'Created On', dataIndex: 'createdOn', render: formatDate, sorter: (a, b) => a.createdOn.localeCompare(b.createdOn) },

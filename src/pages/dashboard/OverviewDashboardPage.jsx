@@ -18,7 +18,6 @@ import { useCollection } from '../../store/DataStore';
 import { COLORS } from '../../constants/theme';
 import { ROUTES, orgPath } from '../../constants/routes';
 import { CLAIMS_TREND, PERIOD_MULTIPLIER, MODE_REVENUE } from '../../data/analytics';
-import { TODAY } from '../../data/seed';
 import { formatDate, formatNumber } from '../../utils/format';
 
 const PERIODS = Object.keys(CLAIMS_TREND).map((p) => ({ value: p, label: p }));
@@ -53,7 +52,7 @@ const OverviewDashboardPage = () => {
     }, [users, modeOrgs]);
 
     const m = useMemo(() => {
-        const now = dayjs(TODAY);
+        const now = dayjs();
         const isExpired = (o) => o.status === 'Expired' || dayjs(o.subscriptionExpiry).isBefore(now);
         return {
             active: modeOrgs.filter((o) => o.status === 'Active' && !isExpired(o)).length,

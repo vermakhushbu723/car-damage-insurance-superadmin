@@ -173,7 +173,7 @@ const SURVEYOR = {
                 { name: 'primaryContact', label: 'Primary Contact Number', type: 'phone', placeholder: 'Enter Primary Contact Number', required: true },
                 { name: 'pan', label: 'PAN', type: 'pan', placeholder: 'Enter Pan Number' },
                 { name: 'registerAddress', label: 'Register Address', placeholder: 'Enter Register Address' },
-                { name: 'officialEmail', label: 'Official Email ID', type: 'email', placeholder: 'Enter Official Email ID' },
+                { name: 'officialEmail', label: 'Official Email ID', type: 'email', placeholder: 'Enter Official Email ID', required: true },
                 { name: 'state', label: 'State', type: 'select', placeholder: 'Select State', options: INDIAN_STATES },
                 { name: 'pin', label: 'PIN', type: 'pin', placeholder: '6 Digit Code', maxLength: 6 },
             ],

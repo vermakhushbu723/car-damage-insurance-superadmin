@@ -6,7 +6,8 @@ import ibimaLogo from '../../assets/images/ibimaLogo.svg';
 import { SIDEBAR_GROUPS, isNavItemActive } from '../../constants/navigation';
 import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
-import { clearSuperAdminSession, getSuperAdminSession, SCOPE_TITLE } from '../../auth/session';
+import { getCurrentAdmin, SCOPE_TITLE } from '../../auth/session';
+import useLogout from '../../auth/useLogout';
 import { useResetData } from '../../store/DataStore';
 
 const NavItem = ({ item, isActive, collapsed, onNavigate }) => {
@@ -47,7 +48,8 @@ const Sidebar = ({ collapsed = false, onNavigateItem }) => {
     const navigate = useNavigate();
     const { modal, message } = App.useApp();
     const resetData = useResetData();
-    const session = getSuperAdminSession();
+    const admin = getCurrentAdmin();
+    const logout = useLogout();
 
     const go = (path) => {
         navigate(path);
@@ -56,23 +58,20 @@ const Sidebar = ({ collapsed = false, onNavigateItem }) => {
 
     const profileMenu = {
         items: [
-            { key: 'reset', icon: <ReloadOutlined />, label: 'Reset demo data' },
+            { key: 'reset', icon: <ReloadOutlined />, label: 'Reset local sample data' },
             { type: 'divider' },
             { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', danger: true },
         ],
         onClick: ({ key }) => {
-            if (key === 'logout') {
-                clearSuperAdminSession();
-                navigate(ROUTES.LOGIN, { replace: true });
-            }
+            if (key === 'logout') logout();
             if (key === 'reset') {
                 modal.confirm({
-                    title: 'Reset demo data?',
-                    content: 'All organizations, users and settings changed in this browser go back to the original sample data.',
+                    title: 'Reset local sample data?',
+                    content: 'Workflow, service models, claims and system settings saved in this browser go back to the sample data. Organizations, users, plans and roles are in the database and are not affected.',
                     okText: 'Reset',
                     onOk: () => {
                         resetData();
-                        message.success('Demo data reset.');
+                        message.success('Local sample data reset.');
                     },
                 });
             }
@@ -122,12 +121,12 @@ const Sidebar = ({ collapsed = false, onNavigateItem }) => {
                         className="w-full flex items-center gap-2 rounded-md text-left text-white"
                         style={{ border: '1px solid rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.12)', padding: collapsed ? 6 : '6px 10px', justifyContent: collapsed ? 'center' : 'flex-start' }}
                     >
-                        <Avatar size={30} style={{ background: '#fff', color: COLORS.primary, fontWeight: 700, fontSize: 12, flexShrink: 0 }}>SA</Avatar>
+                        <Avatar size={30} style={{ background: '#fff', color: COLORS.primary, fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{(admin?.name ?? 'SA').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}</Avatar>
                         {!collapsed && (
                             <>
                                 <span className="flex-1 min-w-0">
-                                    <span className="block text-[13px] font-medium leading-tight truncate">{SCOPE_TITLE[session?.scope ?? 'all']}</span>
-                                    <span className="block text-[10px] truncate opacity-90">{session?.email || 'Superadmin@ibima.com'}</span>
+                                    <span className="block text-[13px] font-medium leading-tight truncate">{admin?.name ?? SCOPE_TITLE.all}</span>
+                                    <span className="block text-[10px] truncate opacity-90">{admin?.email ?? ''}</span>
                                 </span>
                                 <DownOutlined style={{ fontSize: 11 }} />
                             </>

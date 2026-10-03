@@ -3,6 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Drawer } from 'antd';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import { authApi } from '../../api/superadminApi';
+import { updateSessionProfile } from '../../auth/session';
 
 const SIDEBAR_WIDTH = 236;
 const SIDEBAR_WIDTH_COLLAPSED = 68;
@@ -25,6 +27,11 @@ const AppLayout = () => {
     const [collapsed, setCollapsed] = useState(readStoredCollapsed);
     const scrollRef = useRef(null);
     const { pathname } = useLocation();
+
+    // Pick up role/scope changes made since sign-in (a 401 here signs out via the API client).
+    useEffect(() => {
+        authApi.me().then(updateSessionProfile).catch(() => { /* handled by the API client */ });
+    }, []);
 
     // Each page starts at the top (content pane scrolls, not the window).
     useEffect(() => {

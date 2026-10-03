@@ -1,19 +1,23 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Button, App } from 'antd';
+import { Form, Button, App, Result } from 'antd';
 import FormSection from '../../components/forms/FormSection';
 import StepNav from '../../components/forms/StepNav';
 import FieldGrid from '../../components/forms/FieldRenderer';
 import useScrollSpy from '../../components/forms/useScrollSpy';
 import PageTitle from '../../components/ui/PageTitle';
-import { useCollection, useAuditLog } from '../../store/DataStore';
+import { useCollection, useRoles } from '../../store/DataStore';
+import { usersApi, adminUsersApi } from '../../api/superadminApi';
+import { isMasterAdmin, getAdminScope } from '../../auth/session';
+import CredentialsModal from '../../components/organizations/CredentialsModal';
 import { ROUTES } from '../../constants/routes';
-import { USER_ROLES, ADMIN_ROLES, BRANCHES } from '../../data/seed';
+import { USER_ROLES, BRANCHES } from '../../data/seed';
 
-const nextId = (list, prefix, start) => {
-    const nums = list.map((x) => Number(String(x.id).replace(/\D/g, ''))).filter(Number.isFinite);
-    return `${prefix}-${Math.max(start, ...nums) + 1}`;
-};
+const SCOPE_OPTIONS = [
+    { value: 'all', label: 'All (SaaS + Service Provider)' },
+    { value: 'saas', label: 'SaaS only' },
+    { value: 'serviceProvider', label: 'Service Provider only' },
+];
 
 /**
  * "+ Add User" (Users) and "+ Add Admin User" (Admin Users) -- same
@@ -25,15 +29,20 @@ const UserCreatePage = ({ variant = 'user' }) => {
     const isAdmin = variant === 'admin';
     const navigate = useNavigate();
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: users, add: addUser } = useCollection('users');
-    const { items: admins, add: addAdmin } = useCollection('adminUsers');
-    const { items: orgs } = useCollection('organizations');
+    const { upsert: upsertUser } = useCollection('users');
+    const { upsert: upsertAdmin } = useCollection('adminUsers');
+    const { items: orgs, reload: reloadOrgs } = useCollection('organizations');
+    const roles = useRoles();
     const [form] = Form.useForm();
     const [refs, active, scrollTo] = useScrollSpy();
+    const [saving, setSaving] = useState(false);
+    const [credentials, setCredentials] = useState(null);
 
-    const orgOptions = useMemo(() => orgs.map((o) => o.name), [orgs]);
-    const generatedId = isAdmin ? nextId(admins, 'ADM', 100) : nextId(users, 'USR', 1000);
+    // Active organizations only; value = organization ID.
+    const orgOptions = useMemo(
+        () => orgs.filter((o) => o.status === 'Active').map((o) => ({ value: o.id, label: `${o.name} (${o.id})` })),
+        [orgs],
+    );
 
     const sections = isAdmin
         ? [
@@ -41,7 +50,7 @@ const UserCreatePage = ({ variant = 'user' }) => {
                 title: 'ADMIN DETAILS',
                 fields: [
                     { name: 'name', label: 'Full Name', placeholder: 'Enter Full Name', required: true },
-                    { name: 'id', label: 'Admin ID', type: 'auto', placeholder: 'Auto Generated' },
+                    { name: 'id', label: 'Admin ID', type: 'auto', placeholder: 'Auto Generated on save' },
                     { name: 'email', label: 'Email Address', type: 'email', placeholder: 'Enter Email Address', required: true },
                     { name: 'phone', label: 'Mobile Number', type: 'phone', placeholder: '+91 1234567890' },
                 ],
@@ -49,8 +58,9 @@ const UserCreatePage = ({ variant = 'user' }) => {
             {
                 title: 'ROLE & SECURITY',
                 fields: [
-                    { name: 'role', label: 'Admin Role', type: 'select', placeholder: 'Select Role', options: ADMIN_ROLES, required: true },
-                    { name: 'tempPassword', label: 'Temp Password', type: 'password', placeholder: 'Enter Temp Password', required: true, rules: [{ min: 8, message: 'Minimum 8 characters' }] },
+                    { name: 'role', label: 'Admin Role', type: 'select', placeholder: 'Select Role', options: roles.list, required: true },
+                    { name: 'scope', label: 'Manages', type: 'select', placeholder: 'Select Scope', options: SCOPE_OPTIONS, required: true },
+                    { name: 'tempPassword', label: 'Temp Password', type: 'password', placeholder: 'Leave empty to auto-generate', rules: [{ min: 8, message: 'Minimum 8 characters' }, { pattern: /(?=.*\d)(?=.*[A-Za-z])/, message: 'Use letters and numbers' }] },
                     { name: 'mfa', label: 'MFA', type: 'statusRadios', options: ['Enabled', 'Disabled'], span: 24 },
                 ],
             },
@@ -75,11 +85,11 @@ const UserCreatePage = ({ variant = 'user' }) => {
                 title: 'USER PROFILE DETAILS',
                 fields: [
                     { name: 'name', label: 'Full Name', placeholder: 'Enter Full Name', required: true },
-                    { name: 'userId', label: 'User ID', type: 'auto', placeholder: 'Auto Generated' },
+                    { name: 'userId', label: 'User ID', type: 'auto', placeholder: 'Auto Generated on save' },
                     { name: 'email', label: 'Email Address', type: 'email', placeholder: 'Enter Email Address', required: true },
                     { name: 'phone', label: 'Mobile Number', type: 'phone', placeholder: '+91 1234567890', required: true },
                     { name: 'branch', label: 'Branch/Office', type: 'select', placeholder: 'Select Branch', options: BRANCHES },
-                    { name: 'password', label: 'Set Password', type: 'password', placeholder: 'Set Password', required: true, rules: [{ min: 8, message: 'Minimum 8 characters' }] },
+                    { name: 'password', label: 'Set Password', type: 'password', placeholder: 'Leave empty to auto-generate', rules: [{ min: 8, message: 'Minimum 8 characters' }, { pattern: /(?=.*\d)(?=.*[A-Za-z])/, message: 'Use letters and numbers' }] },
                 ],
             },
             {
@@ -90,20 +100,45 @@ const UserCreatePage = ({ variant = 'user' }) => {
 
     const steps = sections.map((s, i) => ({ label: s.title.charAt(0) + s.title.slice(1).toLowerCase(), section: i }));
 
-    const onFinish = (v) => {
-        const now = new Date().toISOString();
-        if (isAdmin) {
-            addAdmin({ id: generatedId, name: v.name, email: v.email, phone: v.phone, role: v.role, status: v.status, mfa: v.mfa === 'Enabled', lastLogin: null });
-        } else {
-            addUser({
-                id: generatedId, userId: generatedId, name: v.name, email: v.email, phone: v.phone, organization: v.organization,
-                role: v.role, status: v.status, branch: v.branch ?? '—', platform: v.platform, lastLogin: null, createdOn: now,
-            });
+    const onFinish = async (v) => {
+        setSaving(true);
+        try {
+            if (isAdmin) {
+                const { admin, credentials: c } = await adminUsersApi.create({
+                    name: v.name, email: v.email, phone: v.phone || undefined, role: v.role, scope: v.scope,
+                    status: v.status, mfa: v.mfa === 'Enabled', password: v.tempPassword || undefined,
+                });
+                upsertAdmin(admin);
+                setCredentials({
+                    title: 'Admin user created',
+                    fileName: admin.id,
+                    note: `${admin.name} signs in to this console with the email (or mobile number) and this password.`,
+                    rows: [['Admin', `${admin.name} (${admin.id})`], ['Role', admin.role], ['Login ID', c.loginId], ['Password', c.password, 'password']],
+                });
+            } else {
+                const { user, credentials: c } = await usersApi.create({
+                    organizationId: v.organization, name: v.name, email: v.email, phone: v.phone, role: v.role,
+                    branch: v.branch || undefined, platform: v.platform, status: v.status, password: v.password || undefined,
+                });
+                upsertUser(user);
+                reloadOrgs(); // organization user counts changed
+                setCredentials({
+                    title: 'User created',
+                    fileName: user.id,
+                    note: `${user.name} must change this password at first login.`,
+                    rows: [['User', `${user.name}`], ['Organization', user.organization], ['User ID', c.loginId], ['Password', c.password, 'password']],
+                });
+            }
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(false);
         }
-        log('Created', 'Users');
-        message.success(`${v.name} added (${generatedId}).`);
-        navigate(isAdmin ? ROUTES.ADMIN_USERS : ROUTES.USERS);
     };
+
+    if (isAdmin && !isMasterAdmin()) {
+        return <Result status="403" title="Only the master Super Admin can add admin users." extra={<Button onClick={() => navigate(ROUTES.ADMIN_USERS)}>Back to Admin Users</Button>} />;
+    }
 
     return (
         <div>
@@ -115,7 +150,7 @@ const UserCreatePage = ({ variant = 'user' }) => {
                     layout="vertical"
                     requiredMark={false}
                     className="flex-1 min-w-0 max-w-[900px]"
-                    initialValues={isAdmin ? { id: generatedId, status: 'Active', mfa: 'Enabled' } : { userId: generatedId, status: 'Active', platform: 'Both' }}
+                    initialValues={isAdmin ? { status: 'Active', mfa: 'Enabled', scope: getAdminScope() } : { status: 'Active', platform: 'Both' }}
                     onFinish={onFinish}
                     onFinishFailed={() => message.error('Please fix the highlighted fields.')}
                     scrollToFirstError
@@ -127,10 +162,11 @@ const UserCreatePage = ({ variant = 'user' }) => {
                     ))}
                     <div className="flex justify-end gap-3 mb-4">
                         <Button onClick={() => navigate(-1)}>Cancel</Button>
-                        <Button type="primary" htmlType="submit">Create Now</Button>
+                        <Button type="primary" htmlType="submit" loading={saving}>Create Now</Button>
                     </div>
                 </Form>
             </div>
+            <CredentialsModal data={credentials} onClose={() => navigate(isAdmin ? ROUTES.ADMIN_USERS : ROUTES.USERS)} />
         </div>
     );
 };

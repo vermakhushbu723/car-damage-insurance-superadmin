@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Form, Select, Button, App, Result } from 'antd';
+import { Form, Select, Button, App, Result, Spin } from 'antd';
 import { ApartmentOutlined } from '@ant-design/icons';
 import CredentialsModal from '../../components/organizations/CredentialsModal';
 import dayjs from 'dayjs';
@@ -10,7 +10,8 @@ import FieldGrid from '../../components/forms/FieldRenderer';
 import useScrollSpy from '../../components/forms/useScrollSpy';
 import ModeToggle from '../../components/ui/ModeToggle';
 import { scopedMode } from '../../auth/session';
-import { useCollection, useStoreValue, useAuditLog } from '../../store/DataStore';
+import { useCollection, useStoreValue, useRoles } from '../../store/DataStore';
+import { organizationsApi } from '../../api/superadminApi';
 import { ORG_FORMS, buildPlanSettingsSection, PLAN_SETTINGS_DEFAULTS } from '../../data/orgForms';
 import { MODE_LABEL } from '../../data/workflow';
 import { ROUTES } from '../../constants/routes';
@@ -35,11 +36,10 @@ const OrganizationFormPage = () => {
     const [params] = useSearchParams();
     const navigate = useNavigate();
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: orgs, add, update } = useCollection('organizations');
+    const { items: orgs, upsert } = useCollection('organizations');
     const { items: plans } = useCollection('plans');
     const [workflow] = useStoreValue('workflow');
-    const [roles] = useStoreValue('roles');
+    const roles = useRoles();
     const [form] = Form.useForm();
 
     const existing = id ? orgs.find((o) => o.id === id) : null;
@@ -118,66 +118,59 @@ const OrganizationFormPage = () => {
     }
 
     const save = async (kind) => {
+        let values;
         try {
-            const values = await form.validateFields();
-            setSubmitting(kind);
-            // A new ID is live straight away; editing keeps whatever status the org already has.
-            const status = existing ? existing.status : 'Active';
-            const idType = kind === 'working' ? 'Working' : 'Pilot';
-            const expiry = dayjs(values.subscriptionStart).add(values.validityMonths, 'month');
-            const payload = {
-                name: values[config.nameField],
-                type,
-                status,
-                idType,
-                serviceModel: mode === 'saas' ? 'SaaS' : 'Service Provider',
-                // Finalized at ID creation (PLAN & SETTINGS):
-                plan: values.plan,
-                subscriptionExpiry: expiry.toISOString(),
-                workflow: { mode, stages: [...workflow[mode].stages], assignedOn: new Date().toISOString() },
-                settings: {
-                    billingCycle: values.billingCycle,
-                    roleTemplate: values.roleTemplate,
-                    modules: values.modules ?? [],
-                    channels: values.channels ?? [],
-                    ...(mode === 'serviceProvider' ? { feeBillModel: values.feeBillModel, feePerClaim: values.feePerClaim ?? null } : {}),
-                },
-                form: values,
-            };
-            if (existing) {
-                update(existing.id, payload);
-                log('Updated', 'Organizations');
-                message.success(`${payload.name} updated (${idType} ID).`);
-                navigate(ROUTES.ORGANIZATIONS);
-            } else {
-                const orgId = nextOrgId(orgs);
-                const loginId = type === 'Surveyor' ? `${orgId}-USR` : `${orgId}-ADM`;
-                add({
-                    id: orgId,
-                    users: 1,
-                    createdOn: new Date().toISOString(),
-                    claims: 0,
-                    adminLoginId: loginId,
-                    ...payload,
-                });
-                log('Created', 'Organizations');
-                setCredentials({
-                    orgId,
-                    name: payload.name,
-                    type,
-                    idType,
-                    serviceModel: payload.serviceModel,
-                    loginId,
-                    email: values.adminEmail || values.officialEmail || '',
-                    password: values.tempPassword || generatePassword(),
-                    validTill: dayjs(payload.subscriptionExpiry).format('DD MMM YYYY'),
-                });
-            }
+            values = await form.validateFields();
         } catch (err) {
             if (err?.errorFields?.length) {
                 message.error('Please fix the highlighted fields.');
                 form.scrollToField(err.errorFields[0].name, { behavior: 'smooth', block: 'center' });
             }
+            return;
+        }
+        setSubmitting(kind);
+        const idType = kind === 'working' ? 'Working' : 'Pilot';
+        const profile = {
+            name: values[config.nameField],
+            idType,
+            serviceModel: mode === 'saas' ? 'SaaS' : 'Service Provider',
+            // Finalized at ID creation (PLAN & SETTINGS):
+            plan: values.plan,
+            subscriptionStart: values.subscriptionStart,
+            validityMonths: values.validityMonths,
+            workflow: { mode, stages: [...workflow[mode].stages], assignedOn: new Date().toISOString() },
+            settings: {
+                billingCycle: values.billingCycle,
+                roleTemplate: values.roleTemplate,
+                modules: values.modules ?? [],
+                channels: values.channels ?? [],
+                ...(mode === 'serviceProvider' ? { feeBillModel: values.feeBillModel, feePerClaim: values.feePerClaim ?? null } : {}),
+            },
+            // Derived/read-only fields are recomputed on load; passwords never go into the stored form.
+            form: Object.fromEntries(Object.entries(values).filter(([k]) => !['workflowName', 'userLimit', 'validTill', 'ibimaId', 'adminId', 'adminUserId', 'userId'].includes(k))),
+        };
+        try {
+            if (existing) {
+                upsert(await organizationsApi.update(existing.id, profile));
+                message.success(`${profile.name} updated (${idType} ID).`);
+                navigate(ROUTES.ORGANIZATIONS);
+            } else {
+                const { organization, credentials } = await organizationsApi.create({ ...profile, type, admin: adminFromForm(values) });
+                upsert(organization);
+                setCredentials({
+                    orgId: organization.id,
+                    name: organization.name,
+                    type,
+                    idType,
+                    serviceModel: organization.serviceModel,
+                    loginId: credentials.loginId,
+                    email: credentials.email,
+                    password: credentials.password,
+                    validTill: dayjs(credentials.validTill).format('DD MMM YYYY'),
+                });
+            }
+        } catch (err) {
+            message.error(err.message);
         } finally {
             setSubmitting(null);
         }
@@ -248,22 +241,21 @@ const OrganizationFormPage = () => {
     );
 };
 
-// Next sequential ID after the highest existing ORG-<number> (ORG-1001, ORG-1002, ...).
-const nextOrgId = (orgs) => {
-    const max = orgs.reduce((m, o) => Math.max(m, Number(/^ORG-(\d+)$/.exec(o.id)?.[1] ?? 0)), 1000);
-    return `ORG-${max + 1}`;
-};
-
-// Temporary password when the form's own temp password was left empty.
-const generatePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$%';
-    const bytes = crypto.getRandomValues(new Uint32Array(12));
-    return Array.from(bytes, (b) => chars[b % chars.length]).join('');
-};
+// The organization's own admin login, taken from whichever admin/contact fields the type's form has.
+const adminFromForm = (v) => ({
+    name: v.adminFullName || v.fullName || v.inchargeName || v.ownerName || v.primaryContactName || v.companyName || v.firmName || v.workshopName,
+    email: v.adminEmail || v.officialEmail,
+    phone: v.adminContact || v.adminMobile || v.primaryContact || v.contactNumber || v.inchargeMobile || v.mobileNumber || undefined,
+    password: v.tempPassword || undefined,
+});
 
 // Keyed by :id so moving between two organizations' pages starts from a fresh form state.
+// Waits for the organizations list so an existing org opens with its own type/mode, not the defaults.
 const OrganizationFormRoute = () => {
     const { id } = useParams();
+    const { loading } = useCollection('organizations');
+    const { loading: plansLoading } = useCollection('plans');
+    if ((id && loading) || plansLoading) return <div className="py-24 flex justify-center"><Spin /></div>;
     return <OrganizationFormPage key={id ?? 'new'} />;
 };
 

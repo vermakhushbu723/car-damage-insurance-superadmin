@@ -9,7 +9,8 @@ import DataTable from '../../components/ui/DataTable';
 import UserCell from '../../components/ui/UserCell';
 import DetailsModal from '../../components/ui/DetailsModal';
 import { ViewButton } from '../../components/ui/RowActions';
-import { useCollection, useAuditLog } from '../../store/DataStore';
+import { useCollection } from '../../store/DataStore';
+import { usersApi } from '../../api/superadminApi';
 import { ROUTES } from '../../constants/routes';
 import { USER_ROLES, USER_STATUSES } from '../../data/seed';
 import { formatDateTime, matchesQuery, formatNumber } from '../../utils/format';
@@ -25,8 +26,8 @@ const withAll = (list, label) => [{ value: 'All', label }, ...list.map((v) => ({
 const UsersPage = () => {
     const navigate = useNavigate();
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: users, update } = useCollection('users');
+    const { items: users, loading, upsert, error } = useCollection('users');
+    const [saving, setSaving] = useState(null);
     const [draft, setDraft] = useState(EMPTY);
     const [applied, setApplied] = useState(EMPTY);
     const [editing, setEditing] = useState(false);
@@ -45,10 +46,16 @@ const UsersPage = () => {
         setDraft(next);
         setApplied(next);
     };
-    const change = (id, patch, label) => {
-        update(id, patch);
-        log('Updated', 'Users');
-        message.success(`${label} updated.`);
+    const change = async (id, patch, label) => {
+        setSaving(id);
+        try {
+            upsert(await usersApi.update(id, patch));
+            message.success(`${label} updated.`);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(null);
+        }
     };
 
     return (
@@ -73,21 +80,22 @@ const UsersPage = () => {
 
             <DataTable
                 dataSource={rows}
+                loading={loading}
                 scrollX={960}
-                locale={{ emptyText: 'No users match these filters.' }}
+                locale={{ emptyText: error ? `Could not load users: ${error}` : users.length ? 'No users match these filters.' : 'No users yet. Each new organization adds its admin here; use "+ Add User" for more.' }}
                 columns={[
                     { title: 'Users Name', dataIndex: 'name', width: 200, render: (n) => <UserCell name={n} />, sorter: (a, b) => a.name.localeCompare(b.name) },
                     { title: 'Organization', dataIndex: 'organization' },
                     {
                         title: 'Role', dataIndex: 'role',
-                        render: (r, row) => (editing ? <Select size="small" value={r} style={{ width: 130 }} options={USER_ROLES.map((v) => ({ value: v, label: v }))} onChange={(v) => change(row.id, { role: v }, 'Role')} /> : r),
+                        render: (r, row) => (editing ? <Select size="small" value={r} disabled={saving === row.id} style={{ width: 130 }} options={USER_ROLES.map((v) => ({ value: v, label: v }))} onChange={(v) => change(row.id, { role: v }, 'Role')} /> : r),
                     },
                     {
                         title: 'Staus', dataIndex: 'status', align: 'center',
-                        render: (s, row) => (editing ? <Select size="small" value={s} style={{ width: 110 }} options={USER_STATUSES.map((v) => ({ value: v, label: v }))} onChange={(v) => change(row.id, { status: v }, 'Status')} /> : <StatusTag status={s} />),
+                        render: (s, row) => (editing ? <Select size="small" value={s} disabled={saving === row.id} style={{ width: 110 }} options={USER_STATUSES.map((v) => ({ value: v, label: v }))} onChange={(v) => change(row.id, { status: v }, 'Status')} /> : <StatusTag status={s} />),
                     },
-                    { title: 'Branch', dataIndex: 'branch', align: 'center' },
-                    { title: 'Last Login', dataIndex: 'lastLogin', render: formatDateTime, sorter: (a, b) => a.lastLogin.localeCompare(b.lastLogin) },
+                    { title: 'Branch', dataIndex: 'branch', align: 'center', render: (b) => b || '—' },
+                    { title: 'Last Login', dataIndex: 'lastLogin', render: formatDateTime, sorter: (a, b) => (a.lastLogin ?? '').localeCompare(b.lastLogin ?? '') },
                     { title: 'Action', key: 'a', align: 'center', width: 70, render: (_, r) => <ViewButton onClick={() => setViewing(r)} /> },
                 ]}
             />

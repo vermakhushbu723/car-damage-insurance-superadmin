@@ -1,47 +1,52 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    SEED_ORGANIZATIONS, SEED_USERS, SEED_ADMIN_USERS, SEED_SERVICE_MODELS, SEED_PLANS, SEED_CLAIMS,
-    SEED_AUDIT_LOGS, SEED_DOWNLOADS, SEED_INTEGRATIONS, SEED_SYSTEM, withClaimLocation,
+    SEED_SERVICE_MODELS, SEED_CLAIMS, SEED_DOWNLOADS, SEED_INTEGRATIONS, SEED_SYSTEM, withClaimLocation,
 } from '../data/seed';
-import { WORKFLOW_MODES, buildPermissionMatrix } from '../data/workflow';
-import { ADMIN_ROLES } from '../data/seed';
+import { WORKFLOW_MODES } from '../data/workflow';
+import {
+    organizationsApi, usersApi, adminUsersApi, plansApi, rolesApi, auditLogsApi,
+} from '../api/superadminApi';
+import { getToken } from '../auth/session';
 
 /**
- * Tiny client-side data layer for the UI-only build. Everything lives in one
- * state object persisted to localStorage, so changes made on one page
- * (e.g. activating a user) show up on every other page and survive a
- * reload. Bump STORAGE_KEY's version when the seed shape changes.
- * To wire a backend later, replace loadState/saveState + the mutators.
+ * App data layer.
+ *
+ * REMOTE collections live in the database (superadmin-service) and are
+ * fetched on first use: organizations, users, adminUsers, plans, roles,
+ * auditLogs. Pages change them through src/api/superadminApi.js and then
+ * call upsert()/reload() so every page sees the saved data.
+ *
+ * LOCAL collections (workflow, service models, claims, downloads, system
+ * settings) have no backend yet and still persist in localStorage.
  */
 const STORAGE_KEY = 'superadmin_data_v2';
 
-const buildSeed = () => ({
-    organizations: SEED_ORGANIZATIONS,
-    users: SEED_USERS,
-    adminUsers: SEED_ADMIN_USERS,
+const REMOTE_LOADERS = {
+    organizations: organizationsApi.list,
+    users: usersApi.list,
+    adminUsers: adminUsersApi.list,
+    plans: plansApi.list,
+    roles: async () => (await rolesApi.list()).roles,
+    auditLogs: auditLogsApi.list,
+};
+const REMOTE_KEYS = Object.keys(REMOTE_LOADERS);
+const emptyRemote = () => Object.fromEntries(REMOTE_KEYS.map((k) => [k, { items: [], loaded: false, loading: false, error: null }]));
+
+const buildLocalSeed = () => ({
     serviceModels: SEED_SERVICE_MODELS,
-    plans: SEED_PLANS,
     claims: SEED_CLAIMS,
-    auditLogs: SEED_AUDIT_LOGS,
     downloads: SEED_DOWNLOADS,
     integrations: SEED_INTEGRATIONS,
     system: SEED_SYSTEM,
     workflow: WORKFLOW_MODES,
-    roles: {
-        list: ADMIN_ROLES,
-        matrices: Object.fromEntries(ADMIN_ROLES.map((r) => [r, buildPermissionMatrix(true)])),
-    },
 });
+const LOCAL_KEYS = Object.keys(buildLocalSeed());
 
 // Backfills fields added after a browser already saved its data, so
 // existing sessions keep their edits instead of being reset to the seed.
 const migrate = (state) => ({
     ...state,
     claims: state.claims.map(withClaimLocation),
-    // IDs made with "Create Pilot ID" used to be saved as Pending; a new ID is Active now.
-    organizations: state.organizations.map((o) => (
-        !o.idType && o.status === 'Pending' && Object.keys(o.form ?? {}).length ? { ...o, status: 'Active', idType: 'Pilot' } : o
-    )),
     // Older saves seeded every stage as disabled ("0 of 7 stages enabled").
     workflow: Object.fromEntries(Object.entries(state.workflow).map(([mode, cfg]) => [
         mode,
@@ -49,14 +54,19 @@ const migrate = (state) => ({
     ])),
 });
 
-const loadState = () => {
+const loadLocal = () => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) return migrate({ ...buildSeed(), ...JSON.parse(raw) });
+        if (raw) {
+            const saved = JSON.parse(raw);
+            // Keys that moved to the database (organizations, users, ...) are dropped.
+            const local = Object.fromEntries(LOCAL_KEYS.filter((k) => k in saved).map((k) => [k, saved[k]]));
+            return migrate({ ...buildLocalSeed(), ...local });
+        }
     } catch {
         /* corrupt/blocked storage -- fall back to seed */
     }
-    return buildSeed();
+    return buildLocalSeed();
 };
 
 const DataContext = createContext(null);
@@ -65,23 +75,53 @@ let idCounter = Date.now();
 export const newId = (prefix) => `${prefix}-${(idCounter++).toString(36).toUpperCase()}`;
 
 export const DataProvider = ({ children }) => {
-    const [state, setState] = useState(loadState);
+    const [local, setLocal] = useState(loadLocal);
+    const [remote, setRemote] = useState(emptyRemote);
+    const inflight = useRef({});
 
     useEffect(() => {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
         } catch {
             /* ignore quota / disabled-storage errors */
         }
-    }, [state]);
+    }, [local]);
 
     const setKey = useCallback((key, updater) => {
-        setState((prev) => ({ ...prev, [key]: typeof updater === 'function' ? updater(prev[key]) : updater }));
+        setLocal((prev) => ({ ...prev, [key]: typeof updater === 'function' ? updater(prev[key]) : updater }));
     }, []);
 
-    const resetAll = useCallback(() => setState(buildSeed()), []);
+    const patchRemote = useCallback((key, patch) => {
+        setRemote((prev) => ({ ...prev, [key]: { ...prev[key], ...(typeof patch === 'function' ? patch(prev[key]) : patch) } }));
+    }, []);
 
-    const value = useMemo(() => ({ state, setKey, resetAll }), [state, setKey, resetAll]);
+    /** Fetches a remote collection (deduplicated while a request is running). */
+    const reload = useCallback((key) => {
+        if (!getToken()) return Promise.resolve([]);
+        if (inflight.current[key]) return inflight.current[key];
+        patchRemote(key, { loading: true, error: null });
+        const p = REMOTE_LOADERS[key]()
+            .then((items) => {
+                patchRemote(key, { items, loaded: true, loading: false });
+                return items;
+            })
+            .catch((err) => {
+                patchRemote(key, { loading: false, error: err.message, loaded: true });
+                return [];
+            })
+            .finally(() => { delete inflight.current[key]; });
+        inflight.current[key] = p;
+        return p;
+    }, [patchRemote]);
+
+    /** Clears database-backed data (on logout, so the next admin never sees the previous one's data). */
+    const clearRemote = useCallback(() => setRemote(emptyRemote()), []);
+    const resetLocal = useCallback(() => setLocal(buildLocalSeed()), []);
+
+    const value = useMemo(
+        () => ({ local, remote, setKey, patchRemote, reload, clearRemote, resetLocal }),
+        [local, remote, setKey, patchRemote, reload, clearRemote, resetLocal],
+    );
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 };
 
@@ -91,48 +131,82 @@ const useData = () => {
     return ctx;
 };
 
-/** Array collection with add/update/remove helpers. New items go to the top. */
+const idOf = (key, item) => (key === 'roles' ? item.name : item.id);
+
+/**
+ * Remote: { items, loading, loaded, error, reload, upsert, upsertMany }
+ *   upsert(item) replaces the item with the same id (or adds it on top).
+ * Local:  { items, add, update, updateMany, remove } (localStorage-backed).
+ */
 export function useCollection(key) {
-    const { state, setKey } = useData();
-    const items = state[key];
+    const { local, remote, setKey, patchRemote, reload } = useData();
+    const isRemote = REMOTE_KEYS.includes(key);
+    const slot = isRemote ? remote[key] : null;
+
+    // Remote collections load the first time a page uses them.
+    useEffect(() => {
+        if (isRemote && !slot.loaded && !slot.loading) reload(key);
+    }, [isRemote, key, slot?.loaded, slot?.loading, reload]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const upsertMany = useCallback((items) => patchRemote(key, (s) => {
+        const byId = new Map(items.map((it) => [idOf(key, it), it]));
+        const kept = s.items.map((it) => byId.get(idOf(key, it)) ?? it);
+        const fresh = items.filter((it) => !s.items.some((x) => idOf(key, x) === idOf(key, it)));
+        return { items: [...fresh, ...kept] };
+    }), [key, patchRemote]);
+    const upsert = useCallback((item) => upsertMany([item]), [upsertMany]);
+    const reloadThis = useCallback(() => reload(key), [key, reload]);
+
     const add = useCallback((item) => setKey(key, (list) => [item, ...list]), [key, setKey]);
     const update = useCallback((id, patch) => setKey(key, (list) => list.map((it) => (it.id === id ? { ...it, ...(typeof patch === 'function' ? patch(it) : patch) } : it))), [key, setKey]);
     const updateMany = useCallback((ids, patch) => setKey(key, (list) => list.map((it) => (ids.includes(it.id) ? { ...it, ...patch } : it))), [key, setKey]);
     const remove = useCallback((id) => setKey(key, (list) => list.filter((it) => it.id !== id)), [key, setKey]);
-    return { items, add, update, updateMany, remove };
+
+    if (isRemote) {
+        return { items: slot.items, loading: slot.loading || !slot.loaded, loaded: slot.loaded, error: slot.error, reload: reloadThis, upsert, upsertMany };
+    }
+    return { items: local[key], add, update, updateMany, remove };
 }
 
-/** Plain value (object) slot, e.g. system settings or workflow config. */
+/** Roles from the database in the shape the pages use: { list: [names], matrices: { name: matrix }, items }. */
+export function useRoles() {
+    const { items, loading, reload, upsert } = useCollection('roles');
+    return useMemo(() => ({
+        list: items.map((r) => r.name),
+        matrices: Object.fromEntries(items.map((r) => [r.name, r.permissions])),
+        items,
+        loading,
+        reload,
+        upsert,
+    }), [items, loading, reload, upsert]);
+}
+
+/** Plain value (object) slot, e.g. system settings or workflow config (local). */
 export function useStoreValue(key) {
-    const { state, setKey } = useData();
+    const { local, setKey } = useData();
     const set = useCallback((updater) => setKey(key, updater), [key, setKey]);
-    return [state[key], set];
+    return [local[key], set];
 }
 
 export function useResetData() {
-    return useData().resetAll;
+    return useData().resetLocal;
+}
+
+export function useClearRemoteData() {
+    return useData().clearRemote;
 }
 
 /**
- * Appends an entry to Audit Logs -- call after any meaningful admin action
- * so the Audit Logs page reflects what actually happened in this session.
+ * Records an admin action in the database audit trail. Actions that go
+ * through superadmin-service are logged by the server itself; this is for
+ * the rest (exports, downloads, local settings).
  */
 export function useAuditLog() {
-    const { setKey } = useData();
-    return useCallback((action, module, status = 'Success') => {
-        const ua = navigator.userAgent;
-        const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
-        const os = /Windows/.test(ua) ? 'Windows' : /Mac OS/.test(ua) ? 'macOS' : /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : 'Linux';
-        setKey('auditLogs', (list) => [{
-            id: newId('LOG'),
-            timestamp: new Date().toISOString(),
-            user: 'Super Admin',
-            role: 'Super Admin',
-            action,
-            ip: '192.168.1.45',
-            device: `${browser} / ${os}`,
-            module,
-            status,
-        }, ...list]);
-    }, [setKey]);
+    const { reload, remote } = useData();
+    const loaded = remote.auditLogs.loaded;
+    return useCallback((action, module, status = 'Success', detail) => {
+        auditLogsApi.record({ action, module, status, ...(detail ? { detail } : {}) })
+            .then(() => { if (loaded) reload('auditLogs'); })
+            .catch(() => { /* audit is best-effort; never block the action itself */ });
+    }, [reload, loaded]);
 }

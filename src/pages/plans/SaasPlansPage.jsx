@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { Button, Modal, Form, Input, InputNumber, Select, App } from 'antd';
+import { Button, Modal, Form, Input, InputNumber, Select, App, Spin } from 'antd';
 import { CheckCircleFilled, FileTextOutlined, UserSwitchOutlined, ClockCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageTitle from '../../components/ui/PageTitle';
 import StatCard from '../../components/ui/StatCard';
-import { useCollection, useAuditLog } from '../../store/DataStore';
+import { useCollection } from '../../store/DataStore';
+import { plansApi } from '../../api/superadminApi';
 import { COLORS } from '../../constants/theme';
-import { TODAY } from '../../data/seed';
 import { formatNumber } from '../../utils/format';
 
 /**
@@ -17,16 +17,16 @@ import { formatNumber } from '../../utils/format';
  */
 const SaasPlansPage = () => {
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: plans, update: updatePlan } = useCollection('plans');
-    const { items: orgs, updateMany } = useCollection('organizations');
+    const { items: plans, loading: plansLoading, upsert: upsertPlan, reload: reloadPlans } = useCollection('plans');
+    const { items: orgs, reload: reloadOrgs } = useCollection('organizations');
+    const [saving, setSaving] = useState(false);
     const [editPlan, setEditPlan] = useState(null);
     const [assignPlan, setAssignPlan] = useState(null);
     const [editForm] = Form.useForm();
     const [assignForm] = Form.useForm();
 
     const kpi = useMemo(() => {
-        const now = dayjs(TODAY);
+        const now = dayjs();
         const subscribed = orgs.filter((o) => o.plan);
         const active = subscribed.filter((o) => o.status === 'Active');
         const expiring = subscribed.filter((o) => {
@@ -45,25 +45,38 @@ const SaasPlansPage = () => {
 
     const saveEdit = async () => {
         const v = await editForm.validateFields();
-        updatePlan(editPlan.id, {
-            name: v.name,
-            price: editPlan.id === 'custom' ? null : v.price,
-            userLimit: v.userLimit,
-            features: v.features.split('\n').map((f) => f.trim()).filter(Boolean),
-        });
-        log('Updated', 'Settings');
-        message.success(`${v.name} plan updated.`);
-        setEditPlan(null);
+        setSaving(true);
+        try {
+            upsertPlan(await plansApi.update(editPlan.id, {
+                name: v.name,
+                ...(editPlan.price == null ? {} : { price: v.price }),
+                userLimit: v.userLimit,
+                features: v.features.split('\n').map((f) => f.trim()).filter(Boolean),
+            }));
+            message.success(`${v.name} plan updated.`);
+            setEditPlan(null);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const openAssign = (plan) => setAssignPlan(plan);
 
     const saveAssign = async () => {
         const { orgIds } = await assignForm.validateFields();
-        updateMany(orgIds, { plan: assignPlan.id });
-        log('Updated', 'Organizations');
-        message.success(`${assignPlan.name} plan assigned to ${orgIds.length} organization${orgIds.length > 1 ? 's' : ''}.`);
-        setAssignPlan(null);
+        setSaving(true);
+        try {
+            await plansApi.assign(assignPlan.id, orgIds);
+            await Promise.all([reloadOrgs(), reloadPlans()]);
+            message.success(`${assignPlan.name} plan assigned to ${orgIds.length} organization${orgIds.length > 1 ? 's' : ''}.`);
+            setAssignPlan(null);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -77,6 +90,7 @@ const SaasPlansPage = () => {
                 <StatCard label="Monthly Recurring Revenue" value={`₹ ${formatNumber(kpi.mrr)}`} icon={<CloseCircleOutlined />} tone="red" />
             </div>
 
+            {plansLoading && <div className="py-16 flex justify-center"><Spin /></div>}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                 {plans.map((plan) => {
                     const isCustom = plan.price == null;
@@ -115,11 +129,11 @@ const SaasPlansPage = () => {
                 })}
             </div>
 
-            <Modal open={!!editPlan} title={`Edit Plan — ${editPlan?.name ?? ''}`} okText="Save Plan" onOk={saveEdit} onCancel={() => setEditPlan(null)} destroyOnHidden>
+            <Modal open={!!editPlan} title={`Edit Plan — ${editPlan?.name ?? ''}`} okText="Save Plan" confirmLoading={saving} onOk={saveEdit} onCancel={() => setEditPlan(null)} destroyOnHidden>
                 {/* preserve={false} + initialValues: each open starts from the clicked plan (modals are destroyed on close) */}
                 <Form form={editForm} layout="vertical" requiredMark={false} preserve={false} initialValues={editPlan ? { ...editPlan, features: editPlan.features.join('\n') } : undefined}>
                     <Form.Item name="name" label="Plan Name" rules={[{ required: true }]}><Input /></Form.Item>
-                    {editPlan?.id !== 'custom' && (
+                    {editPlan && editPlan.price != null && (
                         <Form.Item name="price" label="Price (₹ / Month)" rules={[{ required: true, message: 'Enter a price' }]}>
                             <InputNumber min={0} className="w-full" style={{ width: '100%' }} />
                         </Form.Item>
@@ -129,7 +143,7 @@ const SaasPlansPage = () => {
                 </Form>
             </Modal>
 
-            <Modal open={!!assignPlan} title={`Select Plan — ${assignPlan?.name ?? ''}`} okText="Assign Plan" onOk={saveAssign} onCancel={() => setAssignPlan(null)} destroyOnHidden>
+            <Modal open={!!assignPlan} title={`Select Plan — ${assignPlan?.name ?? ''}`} okText="Assign Plan" confirmLoading={saving} onOk={saveAssign} onCancel={() => setAssignPlan(null)} destroyOnHidden>
                 <Form form={assignForm} layout="vertical" requiredMark={false} preserve={false}>
                     <Form.Item name="orgIds" label="Organizations" rules={[{ required: true, message: 'Select at least one organization' }]}>
                         <Select

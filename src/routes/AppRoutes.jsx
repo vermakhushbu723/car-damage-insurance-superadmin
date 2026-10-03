@@ -6,6 +6,7 @@ import AppLayout from '../components/layout/AppLayout';
 import { scopedMode } from '../auth/session';
 
 import LoginPage from '../pages/auth/LoginPage';
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 import OverviewDashboardPage from '../pages/dashboard/OverviewDashboardPage';
 
 import OrganizationsPage from '../pages/organizations/OrganizationsPage';
@@ -53,6 +54,7 @@ const DashboardHome = () => (
 const AppRoutes = () => (
     <Routes>
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+        <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
 
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
             <Route path={ROUTES.HOME} element={<DashboardHome />} />

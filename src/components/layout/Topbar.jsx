@@ -9,7 +9,8 @@ import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
 import { ALL_NAV_ITEMS } from '../../constants/navigation';
 import { SYSTEM_ALERTS } from '../../data/analytics';
-import { clearSuperAdminSession } from '../../auth/session';
+import { getCurrentAdmin } from '../../auth/session';
+import useLogout from '../../auth/useLogout';
 
 const circleBtn = { width: 36, height: 36, background: 'rgba(255,255,255,0.75)' };
 
@@ -44,17 +45,16 @@ const Topbar = ({ onMenuClick, collapsed, onToggleCollapsed }) => {
         },
     };
 
+    const logout = useLogout();
+    const admin = getCurrentAdmin();
     const accountMenu = {
         items: [
-            { key: 'profile', icon: <UserOutlined />, label: 'Super Admin', disabled: true },
+            { key: 'profile', icon: <UserOutlined />, label: admin ? `${admin.name} (${admin.email})` : 'Super Admin', disabled: true },
             { type: 'divider' },
             { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', danger: true },
         ],
         onClick: ({ key }) => {
-            if (key === 'logout') {
-                clearSuperAdminSession();
-                navigate(ROUTES.LOGIN, { replace: true });
-            }
+            if (key === 'logout') logout();
         },
     };
 

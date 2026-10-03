@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Form, Input, Button, Modal, Alert, App } from 'antd';
+import { Form, Input, Button, Modal, Alert, App, Typography } from 'antd';
 import { LockOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import PageTitle from '../../components/ui/PageTitle';
-import { useCollection, useAuditLog } from '../../store/DataStore';
+import { usersApi } from '../../api/superadminApi';
+import { formatDateTime } from '../../utils/format';
 import { COLORS } from '../../constants/theme';
 
 const CHECKS = ['Search User By User ID', 'Verify Registered Contact Details', 'Send Secure Reset Link', 'Manual Reset With Audit Trail'];
-const digits = (s = '') => s.replace(/\D/g, '').slice(-10);
 
 /**
  * Password Reset: look a user up by User ID (see the Users page eye/details
@@ -18,52 +18,65 @@ const digits = (s = '') => s.replace(/\D/g, '').slice(-10);
 const PasswordResetPage = () => {
     const [params] = useSearchParams();
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: users } = useCollection('users');
     const [form] = Form.useForm();
     const [manualForm] = Form.useForm();
     const [verified, setVerified] = useState(null);
     const [error, setError] = useState('');
     const [manualOpen, setManualOpen] = useState(false);
     const [sending, setSending] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [resetting, setResetting] = useState(false);
+    const [link, setLink] = useState(null); // { link, expiresAt, email } after "Send Link"
 
     const verify = async () => {
         const v = await form.validateFields();
-        const user = users.find((u) => u.userId.toLowerCase() === v.userId.trim().toLowerCase());
-        if (!user) {
+        setVerifying(true);
+        try {
+            const user = await usersApi.verify(v.userId.trim(), v.email.trim(), v.phone.trim());
+            setError('');
+            setVerified(user);
+            message.success(`${user.name} verified.`);
+        } catch (err) {
             setVerified(null);
-            setError(`No user found with User ID "${v.userId.trim()}".`);
-            log('Updated', 'Users', 'Failed');
-            return;
+            setError(err.status === 404 ? `No user found with User ID "${v.userId.trim()}".` : err.message);
+        } finally {
+            setVerifying(false);
         }
-        const emailOk = user.email.toLowerCase() === v.email.trim().toLowerCase();
-        const phoneOk = digits(user.phone) === digits(v.phone);
-        if (!emailOk || !phoneOk) {
-            setVerified(null);
-            setError(`Registered contact details do not match (${[!emailOk && 'email', !phoneOk && 'contact number'].filter(Boolean).join(' & ')}).`);
-            log('Updated', 'Users', 'Failed');
-            return;
-        }
-        setError('');
-        setVerified(user);
-        message.success(`${user.name} verified.`);
     };
 
-    const sendLink = () => {
+    const sendLink = async () => {
         setSending(true);
-        setTimeout(() => {
+        try {
+            setLink(await usersApi.resetLink(verified.id));
+        } catch (err) {
+            message.error(err.message);
+        } finally {
             setSending(false);
-            log('Updated', 'Users');
-            message.success(`Secure reset link sent to ${verified.email}.`);
-        }, 600);
+        }
+    };
+
+    const copyLink = async () => {
+        try {
+            await navigator.clipboard.writeText(link.link);
+            message.success('Reset link copied.');
+        } catch {
+            message.error('Copy failed -- select the link and copy it manually.');
+        }
     };
 
     const resetManually = async () => {
-        await manualForm.validateFields();
-        log('Updated', 'Users');
-        message.success(`Password reset manually for ${verified.name}. Logged to Audit Trail.`);
-        setManualOpen(false);
-        manualForm.resetFields();
+        const v = await manualForm.validateFields();
+        setResetting(true);
+        try {
+            await usersApi.resetPassword(verified.id, v.password, v.reason.trim());
+            message.success(`Password reset for ${verified.name}. They must change it at next login. Logged to Audit Trail.`);
+            setManualOpen(false);
+            manualForm.resetFields();
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setResetting(false);
+        }
     };
 
     // Any edit to the lookup fields invalidates a previous verification.
@@ -116,7 +129,7 @@ const PasswordResetPage = () => {
                     {verified && <Alert type="success" showIcon title={`Verified: ${verified.name} · ${verified.organization} · ${verified.role}`} className="mb-3" />}
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-                        <Button onClick={verify} style={{ height: 42, background: COLORS.primarySoft, color: COLORS.primary, border: 'none', fontWeight: 600 }}>Verify User</Button>
+                        <Button onClick={verify} loading={verifying} style={{ height: 42, background: COLORS.primarySoft, color: COLORS.primary, border: 'none', fontWeight: 600 }}>Verify User</Button>
                         <Button type="primary" disabled={!verified} loading={sending} onClick={sendLink} style={{ height: 42, fontWeight: 600 }}>Send  Link</Button>
                         <Button disabled={!verified} onClick={() => setManualOpen(true)} style={{ height: 42, background: verified ? COLORS.primarySoft : undefined, color: verified ? COLORS.primary : undefined, border: 'none', fontWeight: 600 }}>Reset Manually</Button>
                     </div>
@@ -124,7 +137,7 @@ const PasswordResetPage = () => {
                 </div>
             </div>
 
-            <Modal open={manualOpen} title={`Reset password — ${verified?.name ?? ''}`} okText="Reset Password" onOk={resetManually} onCancel={() => setManualOpen(false)} destroyOnHidden>
+            <Modal open={manualOpen} title={`Reset password — ${verified?.name ?? ''}`} okText="Reset Password" confirmLoading={resetting} onOk={resetManually} onCancel={() => setManualOpen(false)} destroyOnHidden>
                 <Form form={manualForm} layout="vertical" requiredMark={false}>
                     <Form.Item name="password" label="New Password" rules={[{ required: true }, { min: 8, message: 'Minimum 8 characters' }, { pattern: /(?=.*\d)(?=.*[A-Za-z])/, message: 'Use letters and numbers' }]}>
                         <Input.Password autoComplete="new-password" />
@@ -141,6 +154,29 @@ const PasswordResetPage = () => {
                         <Input.TextArea rows={2} placeholder="e.g. User locked out, verified over phone" />
                     </Form.Item>
                 </Form>
+            </Modal>
+            <Modal
+                open={!!link}
+                title="Secure reset link created"
+                onCancel={() => setLink(null)}
+                footer={[
+                    <Button key="copy" type="primary" onClick={copyLink}>Copy Link</Button>,
+                    <Button key="close" onClick={() => setLink(null)}>Close</Button>,
+                ]}
+            >
+                {link && (
+                    <>
+                        <p className="text-[13px] mt-0">
+                            Share this one-time link with <b>{verified?.name}</b> ({link.email}). It works once and expires on <b>{formatDateTime(link.expiresAt)}</b>.
+                        </p>
+                        <Typography.Paragraph copyable={{ text: link.link }} className="text-[12px] break-all rounded-md p-2" style={{ background: COLORS.bgField }}>
+                            {link.link}
+                        </Typography.Paragraph>
+                        {!link.emailSent && (
+                            <Alert type="info" showIcon title="Email delivery is not configured on the server yet, so the link was not emailed automatically." />
+                        )}
+                    </>
+                )}
             </Modal>
         </div>
     );

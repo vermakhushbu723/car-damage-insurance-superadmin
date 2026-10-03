@@ -2,6 +2,7 @@
 // from here instead of hardcoding a path string.
 export const ROUTES = {
     LOGIN: '/login',
+    RESET_PASSWORD: '/reset-password',
     HOME: '/dashboard',
     OVERVIEW: '/dashboard/overview',
 

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Input, Button, App } from 'antd';
 import { MailOutlined, LockOutlined, ReloadOutlined, CarOutlined, FireOutlined, SettingOutlined, EllipsisOutlined } from '@ant-design/icons';
 import loginImage from '../../assets/images/loginHero.jpg';
 import ibimaLogo from '../../assets/images/ibimaLogo.svg';
 import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
-import { setSuperAdminSession, scopeForLogin } from '../../auth/session';
+import { setSuperAdminSession, getSuperAdminSession } from '../../auth/session';
+import { authApi } from '../../api/superadminApi';
+import { useClearRemoteData } from '../../store/DataStore';
 
 const CAPTCHA_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
 const generateCaptcha = (length = 5) =>
@@ -72,7 +74,9 @@ const Label = ({ children, extra }) => (
 
 const LoginPage = () => {
     const navigate = useNavigate();
+    const [params] = useSearchParams();
     const { message } = App.useApp();
+    const clearRemote = useClearRemoteData();
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [captcha, setCaptcha] = useState(() => generateCaptcha());
@@ -85,12 +89,18 @@ const LoginPage = () => {
         setCaptchaInput('');
     };
 
-    const handleSubmit = (e) => {
+    // Already signed in -> straight to the dashboard. Bounced here by an expired session -> say so.
+    useEffect(() => {
+        if (getSuperAdminSession()) navigate(ROUTES.HOME, { replace: true });
+        else if (params.get('expired')) message.warning('Your session ended. Please sign in again.');
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         const id = identifier.trim();
         if (!id) return setError('Please enter your email address or mobile number.');
         if (!EMAIL_RE.test(id) && !MOBILE_RE.test(id.replace(/\s/g, ''))) return setError('Enter a valid email address or 10-digit mobile number.');
-        if (password.length < 6) return setError('Password must be at least 6 characters.');
+        if (!password) return setError('Please enter your password.');
         if (captchaInput.trim() !== captcha) {
             setError('Captcha does not match (it is case-sensitive).');
             refreshCaptcha();
@@ -98,12 +108,19 @@ const LoginPage = () => {
         }
         setError('');
         setLoading(true);
-        // UI-only demo login (no backend yet): any valid-looking credentials
-        // + a matching captcha get you in. Swap for a real auth call later.
-        setTimeout(() => {
-            setSuperAdminSession({ email: EMAIL_RE.test(id) ? id : 'Superadmin@ibima.com', scope: scopeForLogin(id), loggedInAt: new Date().toISOString() });
+        try {
+            const session = await authApi.login(id, password);
+            clearRemote();
+            setSuperAdminSession(session);
+            message.success(`Welcome, ${session.admin.name}`);
             navigate(ROUTES.HOME, { replace: true });
-        }, 400);
+        } catch (err) {
+            setError(err.message);
+            refreshCaptcha();
+            setPassword('');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

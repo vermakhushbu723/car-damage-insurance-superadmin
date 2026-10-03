@@ -5,7 +5,8 @@ import PageTitle from '../../components/ui/PageTitle';
 import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
 import UserCell from '../../components/ui/UserCell';
-import { useCollection, useAuditLog } from '../../store/DataStore';
+import { useCollection } from '../../store/DataStore';
+import { usersApi } from '../../api/superadminApi';
 import { USER_ROLES, USER_STATUSES } from '../../data/seed';
 import { COLORS } from '../../constants/theme';
 import { formatDateTime, matchesQuery, formatNumber } from '../../utils/format';
@@ -28,8 +29,8 @@ const ACTIONS = [
  */
 const UserActivationPage = () => {
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: users, update, updateMany } = useCollection('users');
+    const { items: users, loading, upsert, upsertMany, error } = useCollection('users');
+    const [saving, setSaving] = useState(false);
     const [draft, setDraft] = useState(EMPTY);
     const [applied, setApplied] = useState(EMPTY);
     const [tab, setTab] = useState('All');
@@ -44,13 +45,19 @@ const UserActivationPage = () => {
     const rows = tab === 'All' ? filtered : filtered.filter((u) => u.status === tab);
     const count = (s) => filtered.filter((u) => u.status === s).length;
 
-    const setStatus = (ids, status) => {
-        if (ids.length === 1) update(ids[0], { status });
-        else updateMany(ids, { status });
-        log('Updated', 'Users');
-        const label = ACTIONS.find((a) => a.key === status)?.label ?? status;
-        message.success(`${label}: ${ids.length} user${ids.length > 1 ? 's' : ''} updated.`);
-        setSelected((s) => s.filter((id) => !ids.includes(id)));
+    const setStatus = async (ids, status) => {
+        setSaving(true);
+        try {
+            if (ids.length === 1) upsert(await usersApi.update(ids[0], { status }));
+            else upsertMany(await usersApi.bulkStatus(ids, status));
+            const label = ACTIONS.find((a) => a.key === status)?.label ?? status;
+            message.success(`${label}: ${ids.length} user${ids.length > 1 ? 's' : ''} updated.`);
+            setSelected((s) => s.filter((id) => !ids.includes(id)));
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const tabItems = [
@@ -82,9 +89,10 @@ const UserActivationPage = () => {
 
             <DataTable
                 dataSource={rows}
+                loading={loading || saving}
                 scrollX={880}
                 rowSelection={{ selectedRowKeys: selected, onChange: setSelected }}
-                locale={{ emptyText: 'No users in this view.' }}
+                locale={{ emptyText: error ? `Could not load users: ${error}` : 'No users in this view.' }}
                 columns={[
                     { title: 'Users Name', dataIndex: 'name', width: 200, render: (n) => <UserCell name={n} /> },
                     { title: 'Organization', dataIndex: 'organization' },

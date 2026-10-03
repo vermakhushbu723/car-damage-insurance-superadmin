@@ -9,6 +9,7 @@ const APP_NAME = 'IBima Assist Super Admin';
 // Pages that aren't sidebar items (or need a more specific name than their parent item).
 const EXTRA_TITLES = [
     [ROUTES.LOGIN, 'Login'],
+    [ROUTES.RESET_PASSWORD, 'Reset Password'],
     [ROUTES.OVERVIEW, 'Dashboard'],
     [ROUTES.ORGANIZATION_NEW, 'Add Organization'],
     [ROUTES.USER_NEW, 'Add User'],

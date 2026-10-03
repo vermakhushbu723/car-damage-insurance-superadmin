@@ -13,7 +13,8 @@ const CredentialsModal = ({ data, onClose }) => {
     const [showPassword, setShowPassword] = useState(false);
     if (!data) return null;
 
-    const rows = [
+    // Callers other than the organization form (Add User / Add Admin User) pass their own rows + title.
+    const rows = data.rows ?? [
         ['Organization', `${data.name} (${data.type})`],
         ['Organization ID', data.orgId],
         ['ID Type', `${data.idType} ID · ${data.serviceModel}`],
@@ -38,7 +39,7 @@ const CredentialsModal = ({ data, onClose }) => {
         const url = URL.createObjectURL(new Blob([`IBima Assist -- New ID credentials\n\n${asText}\n\nThe password must be changed at first login.\n`], { type: 'text/plain' }));
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${data.orgId}_credentials.txt`;
+        a.download = `${data.fileName ?? data.orgId}_credentials.txt`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -53,7 +54,7 @@ const CredentialsModal = ({ data, onClose }) => {
             title={(
                 <span className="flex items-center gap-2">
                     <CheckCircleFilled style={{ color: COLORS.success, fontSize: 20 }} />
-                    {data.idType} ID created successfully
+                    {data.title ?? `${data.idType} ID created successfully`}
                 </span>
             )}
             footer={[
@@ -63,7 +64,7 @@ const CredentialsModal = ({ data, onClose }) => {
             ]}
         >
             <p className="text-[13px] mt-0 mb-3" style={{ color: COLORS.textSecondary }}>
-                Share these login details with the organization admin. They will be asked to change the password at first login.
+                {data.note ?? 'Share these login details with the organization admin. They will be asked to change the password at first login.'}
             </p>
             <div className="rounded-md overflow-hidden" style={{ border: `1px solid ${COLORS.border}` }}>
                 {rows.map(([label, value, kind], i) => (

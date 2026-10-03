@@ -13,13 +13,13 @@ const EMPTY = { user: 'All', role: 'All', module: 'All', action: 'All', status: 
 
 /**
  * Audit Logs -- every admin action taken in this app is appended here
- * (see useAuditLog), on top of the seeded history. Filters apply on
+ * (see useAuditLog) -- read from the database (superadmin-service). Filters apply on
  * "Refresh Report"; Export downloads the filtered rows as CSV.
  */
 const AuditLogsPage = () => {
     const { message } = App.useApp();
     const log = useAuditLog();
-    const { items: logs } = useCollection('auditLogs');
+    const { items: logs, loading, reload, error } = useCollection('auditLogs');
     const [range, setRange] = useState(null);
     const [draft, setDraft] = useState(EMPTY);
     const [applied, setApplied] = useState({ ...EMPTY, range: null });
@@ -41,12 +41,11 @@ const AuditLogsPage = () => {
         return ['user', 'role', 'module', 'action', 'status'].every((k) => applied[k] === 'All' || l[k] === applied[k]);
     }), [logs, applied]);
 
-    const refresh = () => {
+    const refresh = async () => {
         setRefreshing(true);
-        setTimeout(() => {
-            setApplied({ ...draft, range });
-            setRefreshing(false);
-        }, 300);
+        await reload();
+        setApplied({ ...draft, range });
+        setRefreshing(false);
     };
 
     const exportRows = () => {
@@ -75,9 +74,10 @@ const AuditLogsPage = () => {
                 title="Audit Logs Details"
                 extra={<span className="text-xs text-slate-500">{rows.length} entries</span>}
                 dataSource={rows}
+                loading={loading}
                 pageSize={6}
                 scrollX={980}
-                locale={{ emptyText: 'No log entries match these filters.' }}
+                locale={{ emptyText: error ? `Could not load audit logs: ${error}` : 'No log entries match these filters.' }}
                 columns={[
                     { title: 'Time stamp', dataIndex: 'timestamp', render: formatDateTime, sorter: (a, b) => a.timestamp.localeCompare(b.timestamp), defaultSortOrder: 'descend' },
                     { title: 'Users', dataIndex: 'user' },

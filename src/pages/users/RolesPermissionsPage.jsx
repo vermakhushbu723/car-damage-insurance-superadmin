@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Button, Modal, Form, Input, Select, Segmented, App } from 'antd';
+import { Button, Modal, Form, Input, Select, Segmented, Tooltip, Spin, App } from 'antd';
 import { EditOutlined, SaveOutlined } from '@ant-design/icons';
 import PageTitle from '../../components/ui/PageTitle';
 import DataTable from '../../components/ui/DataTable';
 import OnOffSwitch from '../../components/ui/OnOffSwitch';
-import { useStoreValue, useAuditLog } from '../../store/DataStore';
+import { useRoles } from '../../store/DataStore';
+import { rolesApi } from '../../api/superadminApi';
+import { isMasterAdmin } from '../../auth/session';
 import { PERMISSION_PAGES, PERMISSION_ACTIONS, PERMISSION_ACTION_LABELS, buildPermissionMatrix } from '../../data/workflow';
 import { COLORS } from '../../constants/theme';
 
@@ -16,15 +18,16 @@ import { COLORS } from '../../constants/theme';
  */
 const RolesPermissionsPage = () => {
     const { message, modal } = App.useApp();
-    const log = useAuditLog();
-    const [roles, setRoles] = useStoreValue('roles');
-    const [activeRole, setActiveRole] = useState(roles.list[0]);
+    const roles = useRoles();
+    const master = isMasterAdmin();
+    const [activeRole, setActiveRole] = useState(null);
+    const [saving, setSaving] = useState(false);
     const [createOpen, setCreateOpen] = useState(false);
     const [form] = Form.useForm();
     const [draft, setDraft] = useState(null); // non-null = edit mode (unsaved copy of the matrix)
 
     const role = roles.list.includes(activeRole) ? activeRole : roles.list[0];
-    const saved = roles.matrices[role] ?? buildPermissionMatrix(false);
+    const saved = (role && roles.matrices[role]) ?? buildPermissionMatrix(false);
     const editing = draft !== null;
     const matrix = draft ?? saved;
     const dirty = editing && JSON.stringify(draft) !== JSON.stringify(saved);
@@ -40,15 +43,21 @@ const RolesPermissionsPage = () => {
     const startEdit = () => setDraft(structuredClone(saved));
     const cancelEdit = () => setDraft(null);
 
-    const saveMatrix = () => {
+    const saveMatrix = async () => {
         if (!dirty) {
             setDraft(null);
             return message.info('No changes to save.');
         }
-        setRoles((prev) => ({ ...prev, matrices: { ...prev.matrices, [role]: draft } }));
-        setDraft(null);
-        log('Updated', 'Users');
-        message.success(`Permissions updated for ${role}.`);
+        setSaving(true);
+        try {
+            roles.upsert(await rolesApi.savePermissions(role, draft));
+            setDraft(null);
+            message.success(`Permissions updated for ${role}.`);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(false);
+        }
     };
 
     // Switching role (or creating one) while there are unsaved edits asks first.
@@ -68,17 +77,20 @@ const RolesPermissionsPage = () => {
 
     const createRole = async () => {
         const { name, copyFrom } = await form.validateFields();
-        const trimmed = name.trim();
-        setRoles((prev) => ({
-            list: [...prev.list, trimmed],
-            matrices: { ...prev.matrices, [trimmed]: copyFrom ? structuredClone(prev.matrices[copyFrom]) : buildPermissionMatrix(false) },
-        }));
-        setActiveRole(trimmed);
-        setDraft(null);
-        log('Created', 'Users');
-        message.success(`Role "${trimmed}" created.`);
-        setCreateOpen(false);
-        form.resetFields();
+        setSaving(true);
+        try {
+            const created = await rolesApi.create(name.trim(), copyFrom);
+            roles.upsert(created);
+            setActiveRole(created.name);
+            setDraft(null);
+            message.success(`Role "${created.name}" created.`);
+            setCreateOpen(false);
+            form.resetFields();
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const columns = [
@@ -98,9 +110,11 @@ const RolesPermissionsPage = () => {
         }),
     ];
 
+    if (roles.loading && !roles.list.length) return <div className="py-24 flex justify-center"><Spin /></div>;
+
     return (
         <div>
-            <PageTitle title="Roles & Permission" extra={<Button type="primary" className="min-w-[170px]" onClick={() => guardUnsaved(() => setCreateOpen(true))}>+ Create Role</Button>} />
+            <PageTitle title="Roles & Permission" extra={<Tooltip title={master ? '' : 'Only the master Super Admin can create roles.'}><Button type="primary" className="min-w-[170px]" disabled={!master} onClick={() => guardUnsaved(() => setCreateOpen(true))}>+ Create Role</Button></Tooltip>} />
 
             <div className="rounded-lg p-3 md:p-4" style={{ background: '#F4F4F5', border: `1px solid ${COLORS.border}` }}>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -115,10 +129,12 @@ const RolesPermissionsPage = () => {
                         {editing ? (
                             <>
                                 <Button size="small" onClick={cancelEdit}>Cancel</Button>
-                                <Button size="small" type="primary" icon={<SaveOutlined />} onClick={saveMatrix}>Save / Update</Button>
+                                <Button size="small" type="primary" icon={<SaveOutlined />} loading={saving} onClick={saveMatrix}>Save / Update</Button>
                             </>
                         ) : (
-                            <Button size="small" type="primary" icon={<EditOutlined />} onClick={startEdit}>Edit</Button>
+                            <Tooltip title={master ? '' : 'Only the master Super Admin can change permissions.'}>
+                                <Button size="small" type="primary" icon={<EditOutlined />} disabled={!master || !role} onClick={startEdit}>Edit</Button>
+                            </Tooltip>
                         )}
                     </div>
                 </div>
@@ -137,7 +153,7 @@ const RolesPermissionsPage = () => {
                 />
             </div>
 
-            <Modal open={createOpen} title="Create Role" okText="Create Role" onOk={createRole} onCancel={() => setCreateOpen(false)} destroyOnHidden>
+            <Modal open={createOpen} title="Create Role" okText="Create Role" confirmLoading={saving} onOk={createRole} onCancel={() => setCreateOpen(false)} destroyOnHidden>
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item
                         name="name"
