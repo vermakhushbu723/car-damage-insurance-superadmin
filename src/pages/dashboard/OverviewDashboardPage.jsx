@@ -17,10 +17,23 @@ import { DonutWithLegend, ThinLine } from '../../components/charts/Charts';
 import { useCollection } from '../../store/DataStore';
 import { COLORS } from '../../constants/theme';
 import { ROUTES, orgPath } from '../../constants/routes';
-import { CLAIMS_TREND, PERIOD_MULTIPLIER, MODE_REVENUE } from '../../data/analytics';
+import { claimsTrend, claimsInPeriod } from '../../utils/claimStats';
+import useSystemAlerts from '../../hooks/useSystemAlerts';
 import { formatDate, formatNumber } from '../../utils/format';
 
-const PERIODS = Object.keys(CLAIMS_TREND).map((p) => ({ value: p, label: p }));
+const PERIODS = ['This Month', 'Last Month', 'This Year'].map((p) => ({ value: p, label: p }));
+// "12%" trend label: items created in the last 30 days vs the 30 days before.
+const trendOf = (list, dateKey) => {
+    const now = dayjs();
+    const inWindow = (from, to) => list.filter((x) => {
+        const d = dayjs(x[dateKey]);
+        return d.isAfter(now.subtract(from, 'day')) && !d.isAfter(now.subtract(to, 'day'));
+    }).length;
+    const a = inWindow(30, 0);
+    const b = inWindow(60, 30);
+    if (!b) return { trend: a ? '100%' : '0%', trendDown: false };
+    return { trend: `${Math.abs(Math.round(((a - b) / b) * 100))}%`, trendDown: a < b };
+};
 const pct = (n, total) => `${String(n).padStart(2, '0')}(${total ? Math.round((n / total) * 100) : 0}%)`;
 
 /**
@@ -38,6 +51,7 @@ const OverviewDashboardPage = () => {
     const { items: orgs } = useCollection('organizations');
     const { items: users } = useCollection('users');
     const { items: plans } = useCollection('plans');
+    const { items: claims } = useCollection('claims');
     const [topPeriod, setTopPeriod] = useState('This Month');
     const [trendPeriod, setTrendPeriod] = useState('This Month');
 
@@ -46,10 +60,25 @@ const OverviewDashboardPage = () => {
 
     // Only this mode's organizations (and their users) feed the page.
     const modeOrgs = useMemo(() => orgs.filter((o) => o.serviceModel === modeLabel), [orgs, modeLabel]);
-    const modeUsers = useMemo(() => {
-        const names = new Set(modeOrgs.map((o) => o.name));
-        return users.filter((u) => names.has(u.organization));
-    }, [users, modeOrgs]);
+    const modeOrgIds = useMemo(() => new Set(modeOrgs.map((o) => o.id)), [modeOrgs]);
+    const modeUsers = useMemo(() => users.filter((u) => modeOrgIds.has(u.organizationId)), [users, modeOrgIds]);
+    const modeClaims = useMemo(() => claims.filter((c) => modeOrgIds.has(c.organizationId)), [claims, modeOrgIds]);
+    const alerts = useSystemAlerts(mode);
+
+    // Revenue (MTD): SaaS = monthly plan price of active organizations; Service Provider =
+    // fee per claim x claims intimated this month.
+    const revenue = useMemo(() => {
+        if (mode === 'saas') {
+            return modeOrgs.filter((o) => o.status === 'Active')
+                .reduce((sum, o) => sum + (plans.find((p) => p.id === o.plan)?.price ?? 0), 0);
+        }
+        const monthStart = dayjs().startOf('month');
+        return modeOrgs.reduce((sum, o) => {
+            const fee = Number(o.settings?.feePerClaim) || 0;
+            const n = modeClaims.filter((c) => c.organizationId === o.id && !dayjs(c.intimationDate).isBefore(monthStart)).length;
+            return sum + fee * n;
+        }, 0);
+    }, [mode, modeOrgs, modeClaims, plans]);
 
     const m = useMemo(() => {
         const now = dayjs();
@@ -60,9 +89,9 @@ const OverviewDashboardPage = () => {
             expiring: modeOrgs.filter((o) => !isExpired(o) && o.status !== 'Suspended' && dayjs(o.subscriptionExpiry).diff(now, 'day') <= 30).length,
             expired: modeOrgs.filter(isExpired).length,
             suspended: modeOrgs.filter((o) => o.status === 'Suspended' && !isExpired(o)).length,
-            claims: modeOrgs.reduce((sum, o) => sum + (o.claims ?? 0), 0),
+            claims: modeClaims.length,
         };
-    }, [modeOrgs]);
+    }, [modeOrgs, modeClaims]);
 
     const donut = [
         { label: 'Active', value: m.active, color: isSaas ? '#1F6FEB' : '#35B44A', display: pct(m.active, modeOrgs.length) },
@@ -71,32 +100,26 @@ const OverviewDashboardPage = () => {
         { label: 'Expired', value: m.expired, color: '#D9D9D9', display: pct(m.expired, modeOrgs.length) },
     ];
 
-    const term = isSaas ? 'Subscription' : 'Contract';
-    const inactiveUsers = modeUsers.filter((u) => u.status !== 'Active').length;
-    const alerts = [
-        { id: 'expiring', icon: 'warning', text: `${m.expiring} ${modeLabel} ${term}s Will Expire In 30 Days`, to: isSaas ? ROUTES.SAAS_PLANS : ROUTES.ORGANIZATIONS },
-        { id: 'expired', icon: 'info', text: `${m.expired} ${modeLabel} Organization${m.expired === 1 ? ' Has' : 's Have'} Expired ${term}`, to: ROUTES.ORGANIZATIONS },
-        { id: 'inactive', icon: 'warning', text: `${inactiveUsers} Users Have Inactive Status For More Then 30 Days`, to: ROUTES.USER_ACTIVATION },
-        isSaas
-            ? { id: 'storage', icon: 'info', text: 'Storage Usage Exceeded 80% For 3 Organizations', to: ROUTES.SAAS_USAGE }
-            : { id: 'pending', icon: 'info', text: `${m.pending} Service Provider IDs Are Pending Activation`, to: ROUTES.ORGANIZATIONS },
-    ];
-
     const allocationRows = useMemo(() => [...modeOrgs].sort((a, b) => b.createdOn.localeCompare(a.createdOn)), [modeOrgs]);
 
-    const topOrgs = useMemo(
-        () => [...modeOrgs].sort((a, b) => b.claims - a.claims).slice(0, 5).map((o) => ({ ...o, periodClaims: Math.round(o.claims * PERIOD_MULTIPLIER[topPeriod]) })),
-        [modeOrgs, topPeriod],
-    );
+    const topOrgs = useMemo(() => {
+        const inPeriod = claimsInPeriod(modeClaims, topPeriod);
+        return modeOrgs
+            .map((o) => ({ ...o, periodClaims: inPeriod.filter((c) => c.organizationId === o.id).length }))
+            .filter((o) => o.periodClaims > 0)
+            .sort((a, b) => b.periodClaims - a.periodClaims)
+            .slice(0, 5);
+    }, [modeOrgs, modeClaims, topPeriod]);
+    const trendData = useMemo(() => claimsTrend(modeClaims, trendPeriod), [modeClaims, trendPeriod]);
 
     const stats = [
-        { label: `Total ${modeLabel} Organizations`, value: modeOrgs.length, icon: <AppstoreOutlined />, tone: 'blue', trend: '12%', to: ROUTES.ORGANIZATIONS },
+        { label: `Total ${modeLabel} Organizations`, value: modeOrgs.length, icon: <AppstoreOutlined />, tone: 'blue', ...trendOf(modeOrgs, 'createdOn'), to: ROUTES.ORGANIZATIONS },
         isSaas
-            ? { label: 'Active SaaS', value: m.active, icon: <SafetyCertificateOutlined />, tone: 'green', trend: '8%', to: ROUTES.ORGANIZATIONS }
-            : { label: 'Active Service Provider', value: m.active, icon: <ToolOutlined />, tone: 'indigo', trend: '10%', to: ROUTES.ORGANIZATIONS },
-        { label: 'Total Users', value: formatNumber(modeUsers.length), icon: <TeamOutlined />, tone: 'orange', trend: '15%', to: ROUTES.USERS },
-        { label: 'Total Claims', value: formatNumber(m.claims), icon: <ShoppingOutlined />, tone: 'red', trend: '10%', to: ROUTES.CLAIM_REPORT },
-        { label: isSaas ? 'Total Revenue(MTD)' : 'Service Fee Revenue(MTD)', value: MODE_REVENUE[mode], icon: <DollarOutlined />, tone: 'teal', trend: '9%', to: isSaas ? ROUTES.SAAS_PLANS : ROUTES.ORGANIZATIONS },
+            ? { label: 'Active SaaS', value: m.active, icon: <SafetyCertificateOutlined />, tone: 'green', ...trendOf(modeOrgs.filter((o) => o.status === 'Active'), 'createdOn'), to: ROUTES.ORGANIZATIONS }
+            : { label: 'Active Service Provider', value: m.active, icon: <ToolOutlined />, tone: 'indigo', ...trendOf(modeOrgs.filter((o) => o.status === 'Active'), 'createdOn'), to: ROUTES.ORGANIZATIONS },
+        { label: 'Total Users', value: formatNumber(modeUsers.length), icon: <TeamOutlined />, tone: 'orange', ...trendOf(modeUsers, 'createdOn'), to: ROUTES.USERS },
+        { label: 'Total Claims', value: formatNumber(m.claims), icon: <ShoppingOutlined />, tone: 'red', ...trendOf(modeClaims, 'intimationDate'), to: ROUTES.CLAIM_REPORT },
+        { label: isSaas ? 'Total Revenue(MTD)' : 'Service Fee Revenue(MTD)', value: `₹ ${formatNumber(revenue)}`, icon: <DollarOutlined />, tone: 'teal', to: isSaas ? ROUTES.SAAS_PLANS : ROUTES.ORGANIZATIONS },
     ];
 
     return (
@@ -166,6 +189,7 @@ const OverviewDashboardPage = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-w-[1000px]">
                 <Panel title={`Top 5 ${modeLabel} Organzation By Claims`} extra={<Select size="small" value={topPeriod} onChange={setTopPeriod} options={PERIODS} style={{ width: 118 }} />}>
+                    {!topOrgs.length && <p className="text-[13px] m-0 py-6 text-center" style={{ color: COLORS.textSecondary }}>No claims in this period.</p>}
                     <ul className="list-none p-0 m-0 flex flex-col gap-2.5">
                         {topOrgs.map((o) => (
                             <li key={o.id}>
@@ -178,7 +202,7 @@ const OverviewDashboardPage = () => {
                     </ul>
                 </Panel>
                 <Panel title="Claims Trend (MTD)" extra={<Select size="small" value={trendPeriod} onChange={setTrendPeriod} options={PERIODS} style={{ width: 118 }} />}>
-                    <ThinLine data={CLAIMS_TREND[trendPeriod]} height={190} />
+                    <ThinLine data={trendData} height={190} />
                 </Panel>
             </div>
         </div>

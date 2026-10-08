@@ -1,14 +1,13 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Tooltip, Dropdown, Avatar, App } from 'antd';
-import { DownOutlined, LogoutOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons';
+import { Tooltip, Dropdown, Avatar } from 'antd';
+import { DownOutlined, LogoutOutlined, PlusOutlined } from '@ant-design/icons';
 import ibimaLogo from '../../assets/images/ibimaLogo.svg';
 import { SIDEBAR_GROUPS, isNavItemActive } from '../../constants/navigation';
 import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
 import { getCurrentAdmin, SCOPE_TITLE } from '../../auth/session';
 import useLogout from '../../auth/useLogout';
-import { useResetData } from '../../store/DataStore';
 
 const NavItem = ({ item, isActive, collapsed, onNavigate }) => {
     const Icon = item.icon;
@@ -39,15 +38,13 @@ const NavItem = ({ item, isActive, collapsed, onNavigate }) => {
 
 /**
  * Left navigation -- logo + "+ Add More", grouped sections, and the
- * "Super Admin" profile card (logout / reset demo data) pinned at the
+ * "Super Admin" profile card (logout) pinned at the
  * bottom. `collapsed` = icon-only rail (desktop); `onNavigateItem` lets
  * AppLayout close the mobile drawer after a click.
  */
 const Sidebar = ({ collapsed = false, onNavigateItem }) => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { modal, message } = App.useApp();
-    const resetData = useResetData();
     const admin = getCurrentAdmin();
     const logout = useLogout();
 
@@ -58,23 +55,10 @@ const Sidebar = ({ collapsed = false, onNavigateItem }) => {
 
     const profileMenu = {
         items: [
-            { key: 'reset', icon: <ReloadOutlined />, label: 'Reset local sample data' },
-            { type: 'divider' },
             { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', danger: true },
         ],
         onClick: ({ key }) => {
             if (key === 'logout') logout();
-            if (key === 'reset') {
-                modal.confirm({
-                    title: 'Reset local sample data?',
-                    content: 'Workflow, service models, claims and system settings saved in this browser go back to the sample data. Organizations, users, plans and roles are in the database and are not affected.',
-                    okText: 'Reset',
-                    onOk: () => {
-                        resetData();
-                        message.success('Local sample data reset.');
-                    },
-                });
-            }
         },
     };
 

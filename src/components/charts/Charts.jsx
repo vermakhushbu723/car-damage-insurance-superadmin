@@ -6,11 +6,22 @@ import {
 import { COLORS } from '../../constants/theme';
 
 const AXIS = { fontSize: 10, fill: COLORS.textMuted };
-const kFormat = (v) => (v === 0 ? '00' : `${Math.round(v / 1000)}K`);
+// Axis labels: 1200 -> 1.2K, small numbers as they are.
+const kFormat = (v) => (v >= 1000 ? `${Math.round(v / 100) / 10}K` : String(v));
+// Top of the y-axis: a round number at/above the data's maximum (at least 5), with 5 even ticks.
+const autoMax = (data, keys) => {
+    const top = Math.max(0, ...data.flatMap((d) => keys.map((k) => Number(d[k]) || 0)));
+    if (top <= 5) return 5;
+    const step = 10 ** Math.floor(Math.log10(top));
+    return Math.ceil(top / step) * step;
+};
+const ticksFor = (max) => Array.from({ length: 6 }, (_, i) => Math.round((max / 5) * i));
 const tooltipStyle = { fontSize: 12, borderRadius: 6, border: `1px solid ${COLORS.border}` };
 
 /** Soft-filled area chart with dots (System Alerts / Users Growth / DAU vs MAU). */
-export const AreaTrend = ({ data, series = [{ key: 'value', name: 'Value', color: COLORS.primary }], height = 200, max = 5000 }) => (
+export const AreaTrend = ({ data, series = [{ key: 'value', name: 'Value', color: COLORS.primary }], height = 200, max: maxProp }) => {
+    const max = maxProp ?? autoMax(data, series.map((s) => s.key));
+    return (
     <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={data} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
             <defs>
@@ -23,7 +34,7 @@ export const AreaTrend = ({ data, series = [{ key: 'value', name: 'Value', color
             </defs>
             <CartesianGrid stroke="#EEF2F7" vertical={false} />
             <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={6} />
-            <YAxis tick={AXIS} axisLine={false} tickLine={false} domain={[0, max]} ticks={[0, 1000, 2000, 3000, 4000, 5000].filter((t) => t <= max)} tickFormatter={kFormat} />
+            <YAxis tick={AXIS} axisLine={false} tickLine={false} domain={[0, max]} ticks={ticksFor(max)} tickFormatter={kFormat} allowDecimals={false} />
             <Tooltip contentStyle={tooltipStyle} />
             {series.length > 1 && <Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />}
             {series.map((s) => (
@@ -31,7 +42,8 @@ export const AreaTrend = ({ data, series = [{ key: 'value', name: 'Value', color
             ))}
         </AreaChart>
     </ResponsiveContainer>
-);
+    );
+};
 
 /**
  * Donut with a centered total + right-side legend ("Organization Overview",
@@ -75,17 +87,20 @@ export const DonutWithLegend = ({ segments, centerValue, centerLabel = 'Total', 
 );
 
 /** Plain vertical bars (Settlement Performance By Region). */
-export const SimpleBars = ({ data, height = 210, color = COLORS.primary }) => (
+export const SimpleBars = ({ data, height = 210, color = COLORS.primary, max: maxProp, name = 'Settlements' }) => {
+    const max = maxProp ?? autoMax(data, ['value']);
+    return (
     <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
             <CartesianGrid stroke="#EEF2F7" vertical={false} />
             <XAxis dataKey="label" tick={AXIS} axisLine={false} tickLine={false} />
-            <YAxis tick={AXIS} axisLine={false} tickLine={false} domain={[0, 5000]} ticks={[0, 1000, 2000, 3000, 4000, 5000]} tickFormatter={kFormat} />
+            <YAxis tick={AXIS} axisLine={false} tickLine={false} domain={[0, max]} ticks={ticksFor(max)} tickFormatter={kFormat} allowDecimals={false} />
             <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#F1F5F9' }} />
-            <Bar dataKey="value" name="Settlements" fill={color} radius={[4, 4, 0, 0]} maxBarSize={26} isAnimationActive={false} />
+            <Bar dataKey="value" name={name} fill={color} radius={[4, 4, 0, 0]} maxBarSize={26} isAnimationActive={false} />
         </BarChart>
     </ResponsiveContainer>
-);
+    );
+};
 
 /** Thin line chart (Claims Trend (MTD)). */
 export const ThinLine = ({ data, height = 210 }) => (
@@ -93,7 +108,7 @@ export const ThinLine = ({ data, height = 210 }) => (
         <LineChart data={data} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
             <CartesianGrid stroke="#EEF2F7" vertical={false} />
             <XAxis dataKey="label" tick={AXIS} axisLine={{ stroke: COLORS.textPrimary }} tickLine={false} interval="preserveStartEnd" minTickGap={6} />
-            <YAxis tick={AXIS} axisLine={{ stroke: COLORS.textPrimary }} tickLine={false} tickFormatter={(v) => (v === 0 ? '0' : `${v / 1000}k`)} />
+            <YAxis tick={AXIS} axisLine={{ stroke: COLORS.textPrimary }} tickLine={false} tickFormatter={kFormat} allowDecimals={false} />
             <Tooltip contentStyle={tooltipStyle} />
             <Line type="linear" dataKey="value" name="Claims" stroke={COLORS.primary} strokeWidth={1.5} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
         </LineChart>
@@ -102,7 +117,7 @@ export const ThinLine = ({ data, height = 210 }) => (
 
 /** Horizontal progress bars with trailing value (Claims By Region). */
 export const ProgressBars = ({ data, max }) => {
-    const top = max ?? Math.max(...data.map((d) => d.value)) * 1.03;
+    const top = max ?? Math.max(1, ...data.map((d) => d.value)) * 1.03;
     return (
         <div className="flex flex-col gap-3">
             {data.map((d) => (

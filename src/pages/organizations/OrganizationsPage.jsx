@@ -10,7 +10,7 @@ import { ViewButton } from '../../components/ui/RowActions';
 import { useCollection } from '../../store/DataStore';
 import { organizationsApi } from '../../api/superadminApi';
 import { ROUTES, orgPath } from '../../constants/routes';
-import { ORG_TYPES, ORG_STATUSES, SERVICE_MODES } from '../../data/seed';
+import { ORG_TYPES, ORG_STATUSES, SERVICE_MODES } from '../../data/options';
 import { formatDate, matchesQuery } from '../../utils/format';
 import { getAdminScope } from '../../auth/session';
 import { SERVICE_MODEL_OF_MODE } from '../../data/workflow';

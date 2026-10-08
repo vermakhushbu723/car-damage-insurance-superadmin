@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Tabs, Form, Select, Modal, Input, Checkbox, App } from 'antd';
+import { Button, Tabs, Form, Select, Modal, Input, Checkbox, App, Spin, Result } from 'antd';
 import {
     BankOutlined, TeamOutlined, UserOutlined, SafetyOutlined, FileAddOutlined, UserSwitchOutlined, FileSearchOutlined,
     FileTextOutlined, RobotOutlined, AuditOutlined, CheckSquareOutlined, SolutionOutlined, SafetyCertificateOutlined,
@@ -14,7 +14,8 @@ import OnOffSwitch from '../../components/ui/OnOffSwitch';
 import ModeToggle from '../../components/ui/ModeToggle';
 import { scopedMode } from '../../auth/session';
 import { EditChip } from '../../components/ui/RowActions';
-import { useStoreValue, useCollection, useAuditLog, newId } from '../../store/DataStore';
+import { useRemoteValue, useCollection } from '../../store/DataStore';
+import { workflowsApi } from '../../api/superadminApi';
 import {
     OPERATING_MODELS, ADMIN_PROFILES, FEE_BILL_MODELS, CHANNEL_OPTIONS, AUTO_ROLES, modeOfOrg, SERVICE_MODEL_OF_MODE, MODE_LABEL,
 } from '../../data/workflow';
@@ -75,10 +76,9 @@ const JourneyStepper = ({ stages, rules, selected, onSelect }) => (
  */
 const WorkflowConfigPage = () => {
     const { message, modal } = App.useApp();
-    const log = useAuditLog();
     const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
-    const [workflow, setWorkflow] = useStoreValue('workflow');
+    const [workflow, setWorkflow] = useRemoteValue('workflows');
     const { items: orgs } = useCollection('organizations');
     const linkedOrg = orgs.find((o) => o.id === params.get('org'));
     // Automatic: an organization's workflow is decided by its service model.
@@ -93,6 +93,7 @@ const WorkflowConfigPage = () => {
     const [overviewForm] = Form.useForm();
     const [triggerForm] = Form.useForm();
     const [draftRules, setDraftRules] = useState(null); // unsaved stage-rule edits
+    const [busy, setBusy] = useState(null); // which save is running
 
     const rules = draftRules ?? cfg.rules;
     const stageSelected = cfg.stages.includes(selectedStage) ? selectedStage : cfg.stages[0];
@@ -109,7 +110,21 @@ const WorkflowConfigPage = () => {
         });
     }, [mode, linkedOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const patchMode = (patch) => setWorkflow((prev) => ({ ...prev, [mode]: { ...prev[mode], ...patch } }));
+    // Every change goes to the server; the config it returns (with fresh stats) replaces ours.
+    const run = async (what, call, success) => {
+        setBusy(what);
+        try {
+            const saved = await call();
+            setWorkflow((prev) => ({ ...prev, [mode]: saved }));
+            if (success) message.success(success);
+            return saved;
+        } catch (err) {
+            message.error(err.message);
+            return null;
+        } finally {
+            setBusy(null);
+        }
+    };
 
     const switchMode = (next) => {
         if (next === mode) return;
@@ -126,34 +141,33 @@ const WorkflowConfigPage = () => {
         setDraftRules(rules.map((r) => (r.stage === stage ? { ...r, [key]: value, ...(key === 'enabled' && !value ? { view: false, edit: false, approve: false } : {}) } : r)));
     };
 
-    const saveRules = () => {
+    const saveRules = async () => {
         if (!draftRules) return message.info('No changes to save.');
-        patchMode({ rules: draftRules });
-        setDraftRules(null);
-        log('Updated', 'Settings');
-        message.success('Stage rules saved.');
+        if (await run('rules', () => workflowsApi.update(mode, { rules: draftRules }), 'Stage rules saved.')) setDraftRules(null);
     };
 
-    const saveConfiguration = () => {
-        const overview = overviewForm.getFieldsValue();
-        patchMode({ overview: { ...cfg.overview, ...overview }, ...(draftRules ? { rules: draftRules } : {}) });
-        setDraftRules(null);
-        log('Updated', 'Settings');
-        message.success(`${mode === 'saas' ? 'SaaS' : 'Service Provider'} configuration saved.`);
+    const saveConfiguration = async () => {
+        const { insurer, adminProfile, feeBillModel } = overviewForm.getFieldsValue();
+        const saved = await run('config', () => workflowsApi.update(mode, {
+            overview: { insurer: insurer ?? null, adminProfile, ...(mode === 'serviceProvider' ? { feeBillModel } : {}) },
+            ...(draftRules ? { rules: draftRules } : {}),
+        }), `${mode === 'saas' ? 'SaaS' : 'Service Provider'} configuration saved.`);
+        if (saved) setDraftRules(null);
+        return saved;
     };
 
     const activateConfiguration = () => {
         modal.confirm({
             title: 'Activate this configuration?',
-            content: `The ${mode === 'saas' ? 'SaaS' : 'Service Provider'} workflow (${cfg.stages.length} stages) will apply to ${overviewForm.getFieldValue('insurer') || 'the selected insurer'}.`,
+            content: `The ${mode === 'saas' ? 'SaaS' : 'Service Provider'} workflow (${cfg.stats.stages} enabled stages) will apply to ${overviewForm.getFieldValue('insurer') || 'its organizations'}.`,
             okText: 'Activate',
-            onOk: () => {
-                saveConfiguration();
-                patchMode({ activatedAt: new Date().toISOString() });
-                message.success('Configuration activated.');
+            onOk: async () => {
+                if (await saveConfiguration()) await run('activate', () => workflowsApi.activate(mode), 'Configuration activated.');
             },
         });
     };
+
+    const setAutoRoles = (roles) => run('roles', () => workflowsApi.update(mode, { autoRoles: roles }));
 
     const openTrigger = (t) => setTriggerModal(t);
     // Channels are stored as "Whatsapp+email"; the modal edits them as a checkbox list.
@@ -163,19 +177,15 @@ const WorkflowConfigPage = () => {
 
     const saveTrigger = async () => {
         const v = await triggerForm.validateFields();
-        const record = { ...v, channels: v.channels.join('+') };
-        const triggers = triggerModal === 'new'
-            ? [...cfg.triggers, { id: newId('TRG'), ...record }]
-            : cfg.triggers.map((t) => (t.id === triggerModal.id ? { ...t, ...record } : t));
-        patchMode({ triggers });
-        log(triggerModal === 'new' ? 'Created' : 'Updated', 'Settings');
-        message.success(`Trigger "${v.trigger}" saved.`);
-        setTriggerModal(null);
+        const saved = await run('trigger', () => (triggerModal === 'new'
+            ? workflowsApi.addTrigger(mode, v)
+            : workflowsApi.updateTrigger(mode, triggerModal.id, v)), `Trigger "${v.trigger}" saved.`);
+        if (saved) setTriggerModal(null);
     };
 
     const enabledCount = cfg.rules.filter((r) => r.enabled).length;
     const stats = [
-        { label: 'Active Workflow Stages', value: cfg.stages.length, icon: <BankOutlined />, tone: 'blue' },
+        { label: 'Active Workflow Stages', value: cfg.stats.stages, icon: <BankOutlined />, tone: 'blue' },
         { label: 'Active Roles', value: cfg.stats.roles, icon: <TeamOutlined />, tone: 'green' },
         { label: 'Users', value: cfg.stats.users, icon: <UserOutlined />, tone: 'orange' },
         { label: 'Permission Rules', value: cfg.stats.permissionRules, icon: <SafetyOutlined />, tone: 'red' },
@@ -218,7 +228,7 @@ const WorkflowConfigPage = () => {
                     {cfg.activatedAt && <p className="text-[11px] mt-3 mb-0" style={{ color: COLORS.success }}>Activated {new Date(cfg.activatedAt).toLocaleString('en-IN')}</p>}
                     <div className="flex-1" />
                     <div className="flex justify-end mt-6">
-                        <Button type="primary" size="large" onClick={activateConfiguration} style={{ fontSize: 15 }}>Activate configuration</Button>
+                        <Button type="primary" size="large" loading={busy === 'activate'} onClick={activateConfiguration} style={{ fontSize: 15 }}>Activate configuration</Button>
                     </div>
                 </div>
             </div>
@@ -236,7 +246,7 @@ const WorkflowConfigPage = () => {
                     Stage Wise Access Rules
                     {draftRules && <span className="ml-2 text-[11px] font-medium" style={{ color: COLORS.warning }}>Unsaved changes</span>}
                 </h3>
-                <Button type="primary" onClick={saveRules}>Save Rules</Button>
+                <Button type="primary" loading={busy === 'rules'} onClick={saveRules}>Save Rules</Button>
             </div>
             <DataTable
                 className="table-blue-head"
@@ -301,7 +311,7 @@ const WorkflowConfigPage = () => {
                         >
                             Full - Insurer Workflow
                         </Button>
-                        <Button size="small" type="primary" onClick={saveConfiguration} style={{ fontWeight: 600 }}>Save Configuration</Button>
+                        <Button size="small" type="primary" loading={busy === 'config'} onClick={saveConfiguration} style={{ fontWeight: 600 }}>Save Configuration</Button>
                     </div>
                 </div>
                 <div className="p-3 md:p-4">
@@ -339,7 +349,7 @@ const WorkflowConfigPage = () => {
                 ]}
             />
 
-            <Modal open={!!triggerModal} title={triggerModal === 'new' ? 'Add Communication Trigger' : 'Edit Communication Trigger'} okText="Save" onOk={saveTrigger} onCancel={() => setTriggerModal(null)} destroyOnHidden>
+            <Modal open={!!triggerModal} title={triggerModal === 'new' ? 'Add Communication Trigger' : 'Edit Communication Trigger'} okText="Save" confirmLoading={busy === 'trigger'} onOk={saveTrigger} onCancel={() => setTriggerModal(null)} destroyOnHidden>
                 <Form form={triggerForm} layout="vertical" requiredMark={false} preserve={false} initialValues={triggerInitial}>
                     <Form.Item name="trigger" label="Trigger" rules={[{ required: true, whitespace: true }]}><Input placeholder="e.g. Claim Registered" /></Form.Item>
                     <Form.Item name="stage" label="Stage" rules={[{ required: true }]}>
@@ -361,7 +371,7 @@ const WorkflowConfigPage = () => {
                         return (
                             <label key={r} className="flex items-center justify-between text-[13px]">
                                 {r}
-                                <OnOffSwitch checked={list.includes(r)} onChange={(v) => patchMode({ autoRoles: v ? [...list, r] : list.filter((x) => x !== r) })} />
+                                <OnOffSwitch checked={list.includes(r)} disabled={busy === 'roles'} onChange={(v) => setAutoRoles(v ? [...list, r] : list.filter((x) => x !== r))} />
                             </label>
                         );
                     })}
@@ -371,4 +381,13 @@ const WorkflowConfigPage = () => {
     );
 };
 
-export default WorkflowConfigPage;
+// Waits for the workflow config + organizations before rendering (the page needs both).
+const WorkflowConfigRoute = () => {
+    const [workflow, , { loading, error, reload }] = useRemoteValue('workflows');
+    const { loading: orgsLoading } = useCollection('organizations');
+    if (error && !workflow) return <Result status="error" title="Could not load the workflow" subTitle={error} extra={<Button onClick={reload}>Retry</Button>} />;
+    if (loading || orgsLoading || !workflow) return <div className="py-24 flex justify-center"><Spin /></div>;
+    return <WorkflowConfigPage />;
+};
+
+export default WorkflowConfigRoute;

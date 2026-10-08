@@ -60,3 +60,24 @@ export const api = {
     put: (path, body, opts) => request('PUT', path, body, opts),
     del: (path, opts) => request('DELETE', path, undefined, opts),
 };
+
+/** GET a file (e.g. a generated CSV) with the login token; returns a Blob. */
+export async function fetchFile(path) {
+    const token = getToken();
+    let res;
+    try {
+        res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    } catch {
+        throw new ApiError(0, 'Cannot reach the server. Check your internet connection and try again.');
+    }
+    if (!res.ok) {
+        let detail = null;
+        try {
+            detail = (await res.json()).detail;
+        } catch {
+            /* not JSON */
+        }
+        throw new ApiError(res.status, detail || `Download failed (${res.status}).`);
+    }
+    return res.blob();
+}

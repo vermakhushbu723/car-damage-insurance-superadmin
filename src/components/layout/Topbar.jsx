@@ -6,9 +6,8 @@ import {
     LogoutOutlined, WarningOutlined, InfoCircleOutlined,
 } from '@ant-design/icons';
 import { COLORS } from '../../constants/theme';
-import { ROUTES } from '../../constants/routes';
 import { ALL_NAV_ITEMS } from '../../constants/navigation';
-import { SYSTEM_ALERTS } from '../../data/analytics';
+import useSystemAlerts from '../../hooks/useSystemAlerts';
 import { getCurrentAdmin } from '../../auth/session';
 import useLogout from '../../auth/useLogout';
 
@@ -26,22 +25,18 @@ const Topbar = ({ onMenuClick, collapsed, onToggleCollapsed }) => {
         .filter((i) => !query || i.label.toLowerCase().includes(query.toLowerCase()))
         .map((i) => ({ value: i.path, label: i.label }));
 
-    const alertTargets = {
-        'saas-plans': ROUTES.SAAS_PLANS,
-        organizations: ROUTES.ORGANIZATIONS,
-        'user-activation': ROUTES.USER_ACTIVATION,
-        'saas-usage': ROUTES.SAAS_USAGE,
-    };
+    // Only alerts that actually have something in them.
+    const alerts = useSystemAlerts().filter((a) => a.count > 0);
 
     const notificationsMenu = {
-        items: SYSTEM_ALERTS.map((a) => ({
+        items: alerts.length ? alerts.map((a) => ({
             key: a.id,
             icon: a.icon === 'warning' ? <WarningOutlined style={{ color: COLORS.danger }} /> : <InfoCircleOutlined style={{ color: COLORS.primary }} />,
             label: <span className="text-[12px]">{a.text}</span>,
-        })),
+        })) : [{ key: 'none', label: <span className="text-[12px]">No alerts right now</span>, disabled: true }],
         onClick: ({ key }) => {
-            const alert = SYSTEM_ALERTS.find((a) => a.id === key);
-            if (alert) navigate(alertTargets[alert.target]);
+            const alert = alerts.find((a) => a.id === key);
+            if (alert) navigate(alert.to);
         },
     };
 
@@ -86,7 +81,7 @@ const Topbar = ({ onMenuClick, collapsed, onToggleCollapsed }) => {
             </AutoComplete>
 
             <Dropdown menu={notificationsMenu} trigger={['click']} placement="bottomRight">
-                <Badge count={SYSTEM_ALERTS.length} size="small" offset={[-4, 4]}>
+                <Badge count={alerts.length} size="small" offset={[-4, 4]}>
                     <button type="button" className="flex items-center justify-center rounded-full" style={circleBtn} aria-label="Notifications">
                         <BellOutlined style={{ fontSize: 16, color: COLORS.textPrimary }} />
                     </button>

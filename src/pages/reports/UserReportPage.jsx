@@ -10,96 +10,125 @@ import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
 import DetailsModal from '../../components/ui/DetailsModal';
 import { AreaTrend, DonutWithLegend } from '../../components/charts/Charts';
-import { useCollection, useAuditLog, newId } from '../../store/DataStore';
-import { TREND_AUG, ROLE_DISTRIBUTION, HEATMAP, HEATMAP_DAYS } from '../../data/analytics';
+import { useCollection, useRemoteValue, useAuditLog } from '../../store/DataStore';
+import { downloadsApi } from '../../api/superadminApi';
 import { ROUTES } from '../../constants/routes';
 import { COLORS } from '../../constants/theme';
-import { formatNumber, formatDate, formatDateTime, downloadCsv } from '../../utils/format';
+import { formatNumber, formatDate, downloadCsv } from '../../utils/format';
 
-const SLOT_LABELS = ['12 AM', '2 AM', '4 AM', '6AM', '8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
+const SLOT_LABELS = ['12 AM', '2 AM', '4 AM', '6 AM', '8 AM', '10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM'];
+const ROLE_COLORS = ['#2563EB', '#7C3AED', '#F59E0B', '#0E8AA8', '#4F46E5', '#0284C7', '#16A34A', '#DC2626'];
 
-/** 6-day x 12-slot activity grid; darker = more active users. */
-const HeatMap = () => (
-    <div className="flex flex-col gap-1.5">
-        {HEATMAP.map((row, d) => (
-            <div key={HEATMAP_DAYS[d]} className="flex items-center gap-1">
-                <span className="text-[9px] w-6 shrink-0" style={{ color: COLORS.textMuted }}>{HEATMAP_DAYS[d]}</span>
-                {row.map((v, s) => (
-                    <Tooltip key={s} title={`${HEATMAP_DAYS[d]} ${SLOT_LABELS[s]} · ${Math.round(v * 420)} active users`}>
-                        <span className="flex-1 rounded-sm" style={{ height: 22, background: `rgba(11,76,208,${0.08 + v * 0.8})` }} />
-                    </Tooltip>
-                ))}
+/** 6-day x 12-slot grid of console sign-ins (last 90 days); darker = more sign-ins. */
+const HeatMap = ({ heatmap }) => {
+    const days = heatmap?.days ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return (
+        <div className="flex flex-col gap-1.5">
+            {days.map((day, d) => (
+                <div key={day} className="flex items-center gap-1">
+                    <span className="text-[9px] w-6 shrink-0" style={{ color: COLORS.textMuted }}>{day}</span>
+                    {Array.from({ length: 12 }, (_, s) => {
+                        const v = heatmap?.values?.[d]?.[s] ?? 0;
+                        const n = heatmap?.counts?.[d]?.[s] ?? 0;
+                        return (
+                            <Tooltip key={s} title={`${day} ${SLOT_LABELS[s]} · ${n} sign-in${n === 1 ? '' : 's'}`}>
+                                <span className="flex-1 rounded-sm" style={{ height: 22, background: `rgba(11,76,208,${0.08 + v * 0.8})` }} />
+                            </Tooltip>
+                        );
+                    })}
+                </div>
+            ))}
+            <div className="flex justify-between pl-7 text-[9px]" style={{ color: COLORS.textMuted }}>
+                <span>12 AM</span><span>6 AM</span><span>12 PM</span><span>6 PM</span>
             </div>
-        ))}
-        <div className="flex justify-between pl-7 text-[9px]" style={{ color: COLORS.textMuted }}>
-            <span>12 AM</span><span>6AM</span><span>12 PM</span><span>6 PM</span>
         </div>
-    </div>
-);
-
-const USER_EXPORT_COLUMNS = [
-    { title: 'User ID', dataIndex: 'userId' }, { title: 'Name', dataIndex: 'name' }, { title: 'Email', dataIndex: 'email' },
-    { title: 'Phone', dataIndex: 'phone' }, { title: 'Organization', dataIndex: 'organization' }, { title: 'Role', dataIndex: 'role' },
-    { title: 'Branch', dataIndex: 'branch' }, { title: 'Platform', dataIndex: 'platform' }, { title: 'Status', dataIndex: 'status' },
-    { title: 'Last Login', value: (r) => formatDateTime(r.lastLogin) }, { title: 'Created On', value: (r) => formatDate(r.createdOn) },
-];
-const CLAIM_EXPORT_COLUMNS = [
-    { title: 'Claim ID', dataIndex: 'id' }, { title: 'Customer Name', dataIndex: 'customer' }, { title: 'Claim Type', dataIndex: 'claimType' },
-    { title: 'Amount', dataIndex: 'amount' }, { title: 'SLA', value: (r) => `${r.slaDays} Days` }, { title: 'Status', dataIndex: 'status' },
-];
-const REPORTS = {
-    users: { label: 'User List (CSV)', prefix: 'User_Report' },
-    summary: { label: 'User Summary (CSV)', prefix: 'User_Summary' },
-    claims: { label: 'Claim Details (CSV)', prefix: 'User_Report_Claims' },
+    );
 };
 
-/** User Report -- KPIs from the live users collection, charts from analytics, claim table from claims. */
+const trendOf = (now, before) => {
+    if (!before) return { trend: now ? '100%' : '0%', down: false };
+    return { trend: `${Math.abs(Math.round(((now - before) / before) * 100))}%`, down: now < before };
+};
+
+/**
+ * User Report -- everything from the database: user KPIs (trend = new users
+ * in the last 30 days vs the 30 before), growth, role split, a sign-in heat
+ * map from the audit trail, and the claims table.
+ */
 const UserReportPage = () => {
     const navigate = useNavigate();
     const { message } = App.useApp();
     const log = useAuditLog();
-    const { items: users } = useCollection('users');
-    const { items: claims } = useCollection('claims');
-    const { add: addDownload } = useCollection('downloads');
+    const { items: users, loading } = useCollection('users');
+    const { items: claims, loading: claimsLoading } = useCollection('claims');
+    const { upsert: upsertDownload } = useCollection('downloads');
+    const [usage] = useRemoteValue('usage');
     const [viewing, setViewing] = useState(null);
+    const [downloading, setDownloading] = useState(false);
 
-    const kpi = useMemo(() => ({
-        total: users.length,
-        active: users.filter((u) => u.status === 'Active').length,
-        inactive: users.filter((u) => u.status !== 'Active').length,
-        fresh: users.filter((u) => dayjs().diff(dayjs(u.createdOn), 'day') <= 30).length,
+    const kpi = useMemo(() => {
+        const now = dayjs();
+        const createdIn = (list, from, to) => list.filter((u) => {
+            const d = dayjs(u.createdOn);
+            return d.isAfter(now.subtract(from, 'day')) && !d.isAfter(now.subtract(to, 'day'));
+        }).length;
+        const active = users.filter((u) => u.status === 'Active');
+        const inactive = users.filter((u) => u.status !== 'Active');
+        return {
+            total: users.length,
+            active: active.length,
+            inactive: inactive.length,
+            fresh: createdIn(users, 30, 0),
+            trends: {
+                total: trendOf(createdIn(users, 30, 0), createdIn(users, 60, 30)),
+                active: trendOf(createdIn(active, 30, 0), createdIn(active, 60, 30)),
+                inactive: trendOf(createdIn(inactive, 30, 0), createdIn(inactive, 60, 30)),
+                fresh: trendOf(createdIn(users, 30, 0), createdIn(users, 60, 30)),
+            },
+        };
+    }, [users]);
+
+    // Total users at the end of each of the last 9 days.
+    const growth = useMemo(() => Array.from({ length: 9 }, (_, i) => {
+        const day = dayjs().subtract(8 - i, 'day').endOf('day');
+        return { label: day.format('DD MMM'), value: users.filter((u) => !dayjs(u.createdOn).isAfter(day)).length };
     }), [users]);
 
-    const donut = ROLE_DISTRIBUTION.map((r) => ({ ...r, display: `${r.value}(${r.pct})` }));
+    const donut = useMemo(() => {
+        const byRole = users.reduce((m, u) => m.set(u.role, (m.get(u.role) ?? 0) + 1), new Map());
+        return [...byRole.entries()].sort((a, b) => b[1] - a[1]).map(([role, n], i) => ({
+            label: role, value: n, color: ROLE_COLORS[i % ROLE_COLORS.length], display: `${n}(${Math.round((n / users.length) * 100)}%)`,
+        }));
+    }, [users]);
 
-    // "Download Report": builds the CSV from live data and records it in Data Download + Audit Logs.
-    const downloadReport = (kind) => {
-        const fileName = `${REPORTS[kind].prefix}_${dayjs().format('YYYY_MM_DD')}.csv`;
-        let rows;
-        let columns;
-        if (kind === 'users') {
-            rows = users;
-            columns = USER_EXPORT_COLUMNS;
-        } else if (kind === 'claims') {
-            rows = claims;
-            columns = CLAIM_EXPORT_COLUMNS;
-        } else {
-            rows = [
+    // User list / claims are generated on the server (and kept in Data Download); the summary is built here.
+    const downloadReport = async (kind) => {
+        if (kind === 'summary') {
+            const rows = [
                 { metric: 'Total Users', value: kpi.total },
                 { metric: 'Active Users', value: kpi.active },
                 { metric: 'Inactive Users', value: kpi.inactive },
                 { metric: 'New Users (30 days)', value: kpi.fresh },
-                ...ROLE_DISTRIBUTION.map((r) => ({ metric: `Role - ${r.label}`, value: `${r.value} (${r.pct})` })),
+                ...donut.map((r) => ({ metric: `Role - ${r.label}`, value: r.display })),
             ];
-            columns = [{ title: 'Metric', dataIndex: 'metric' }, { title: 'Value', dataIndex: 'value' }];
+            downloadCsv(`User_Summary_${dayjs().format('YYYY_MM_DD')}.csv`, rows, [{ title: 'Metric', dataIndex: 'metric' }, { title: 'Value', dataIndex: 'value' }]);
+            log('Exported', 'Reports', 'Success', 'User summary CSV');
+            return message.success('User summary downloaded.');
         }
-        downloadCsv(fileName, rows, columns);
-        const sizeKb = Math.max(1, Math.round((rows.length * columns.length * 14) / 1024));
-        addDownload({ id: newId('DL'), fileName, dataType: kind === 'claims' ? 'Claims' : 'Users', generatedBy: 'Super Admin', generatedOn: new Date().toISOString(), size: `${sizeKb} KB`, status: 'Ready' });
-        log('Downloaded', 'Reports');
-        message.success(`${fileName} downloaded (${rows.length} rows).`);
+        setDownloading(true);
+        try {
+            const record = await downloadsApi.create({ dataType: kind === 'claims' ? 'Claims' : 'Users', format: 'csv' });
+            upsertDownload(record);
+            await downloadsApi.save(record);
+            message.success(`${record.fileName} downloaded (${record.rows} rows). Also kept in Data Download.`);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setDownloading(false);
+        }
     };
 
+    const t = kpi.trends;
     return (
         <div>
             <PageTitle
@@ -107,9 +136,16 @@ const UserReportPage = () => {
                 extra={(
                     <Dropdown
                         trigger={['click']}
-                        menu={{ items: Object.entries(REPORTS).map(([key, r]) => ({ key, label: r.label })), onClick: ({ key }) => downloadReport(key) }}
+                        menu={{
+                            items: [
+                                { key: 'users', label: 'User List (CSV)' },
+                                { key: 'summary', label: 'User Summary (CSV)' },
+                                { key: 'claims', label: 'Claim Details (CSV)' },
+                            ],
+                            onClick: ({ key }) => downloadReport(key),
+                        }}
                     >
-                        <Button type="primary" icon={<DownloadOutlined />}>
+                        <Button type="primary" icon={<DownloadOutlined />} loading={downloading}>
                             Download Report <DownOutlined className="text-[10px]" />
                         </Button>
                     </Dropdown>
@@ -117,36 +153,40 @@ const UserReportPage = () => {
             />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-                <StatCard label="Total Users" value={formatNumber(kpi.total)} icon={<DatabaseOutlined />} tone="blue" trend="12%" trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USERS)} />
-                <StatCard label="Active Users" value={formatNumber(kpi.active)} icon={<DatabaseOutlined />} tone="green" trend="12%" trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USERS)} />
-                <StatCard label="Inactive Users" value={formatNumber(kpi.inactive)} icon={<DatabaseOutlined />} tone="slate" trend="12%" trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USER_ACTIVATION)} />
-                <StatCard label="New Users" value={formatNumber(kpi.fresh)} icon={<DatabaseOutlined />} tone="purple" trend="12%" trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USERS)} />
+                <StatCard label="Total Users" value={formatNumber(kpi.total)} icon={<DatabaseOutlined />} tone="blue" trend={t.total.trend} trendDown={t.total.down} trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USERS)} />
+                <StatCard label="Active Users" value={formatNumber(kpi.active)} icon={<DatabaseOutlined />} tone="green" trend={t.active.trend} trendDown={t.active.down} trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USERS)} />
+                <StatCard label="Inactive Users" value={formatNumber(kpi.inactive)} icon={<DatabaseOutlined />} tone="slate" trend={t.inactive.trend} trendDown={t.inactive.down} trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USER_ACTIVATION)} />
+                <StatCard label="New Users" value={formatNumber(kpi.fresh)} icon={<DatabaseOutlined />} tone="purple" trend={t.fresh.trend} trendDown={t.fresh.down} trendLabel="VS Last 30 Days" onClick={() => navigate(ROUTES.USERS)} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[1fr_1.3fr_1fr] gap-3 mb-3">
                 <Panel title="Users Growth" extra={<button type="button" className="text-xs" style={{ color: COLORS.primary }} onClick={() => navigate(ROUTES.USERS)}>View All</button>}>
-                    <AreaTrend data={TREND_AUG} series={[{ key: 'value', name: 'Users', color: COLORS.primary }]} height={200} />
+                    <AreaTrend data={growth} series={[{ key: 'value', name: 'Users', color: COLORS.primary }]} height={200} />
                 </Panel>
                 <Panel title="Role Distrubution">
-                    <DonutWithLegend segments={donut} centerValue={kpi.total} centerLabel="Total Users" size={160} />
+                    {donut.length
+                        ? <DonutWithLegend segments={donut} centerValue={kpi.total} centerLabel="Total Users" size={160} />
+                        : <p className="text-[13px] m-0 py-10 text-center" style={{ color: COLORS.textSecondary }}>{loading ? 'Loading…' : 'No users yet.'}</p>}
                 </Panel>
                 <Panel title="Users Active Heat Map" className="lg:col-span-2 xl:col-span-1">
-                    <HeatMap />
+                    <HeatMap heatmap={usage?.heatmap} />
                 </Panel>
             </div>
 
             <DataTable
                 title="Claim Details"
                 dataSource={claims}
+                loading={claimsLoading}
                 pageSize={5}
                 scrollX={860}
+                locale={{ emptyText: 'No claims yet. Claims appear here when the claim systems send them.' }}
                 onRow={(r) => ({ onClick: () => setViewing(r), style: { cursor: 'pointer' } })}
                 columns={[
                     { title: 'Claim ID', dataIndex: 'id' },
                     { title: 'Customer Name', dataIndex: 'customer' },
-                    { title: 'Claim Type', dataIndex: 'claimType' },
+                    { title: 'Claim Type', dataIndex: 'claimType', render: (v) => v || '—' },
                     { title: 'Ammount', dataIndex: 'amount', align: 'center', render: formatNumber },
-                    { title: 'SLA', dataIndex: 'slaDays', align: 'center', render: (d) => `${d} Days` },
+                    { title: 'SLA', dataIndex: 'slaDays', align: 'center', render: (d) => (d == null ? '—' : `${d} Days`) },
                     { title: 'Staus', dataIndex: 'status', align: 'center', render: (s) => <StatusTag status={s} /> },
                 ]}
             />
@@ -161,6 +201,7 @@ const UserReportPage = () => {
                     { label: 'Claim Type', value: viewing.claimType },
                     { label: 'Amount', value: `₹ ${formatNumber(viewing.amount)}` },
                     { label: 'Handler', value: viewing.handler },
+                    { label: 'Organization', value: viewing.organization },
                     { label: 'Intimation Date', value: formatDate(viewing.intimationDate) },
                 ] : []}
             />

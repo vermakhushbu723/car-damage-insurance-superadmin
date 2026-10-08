@@ -7,7 +7,7 @@ import DataTable from '../../components/ui/DataTable';
 import UserCell from '../../components/ui/UserCell';
 import { useCollection } from '../../store/DataStore';
 import { usersApi } from '../../api/superadminApi';
-import { USER_ROLES, USER_STATUSES } from '../../data/seed';
+import { USER_ROLES, USER_STATUSES } from '../../data/options';
 import { COLORS } from '../../constants/theme';
 import { formatDateTime, matchesQuery, formatNumber } from '../../utils/format';
 

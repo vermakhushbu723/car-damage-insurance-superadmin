@@ -1,15 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Button, DatePicker, Select, Tooltip, App } from 'antd';
 import {
-    FileTextOutlined, TeamOutlined, SnippetsOutlined, CreditCardOutlined, AuditOutlined, ArrowDownOutlined, FilterOutlined,
+    FileTextOutlined, TeamOutlined, SnippetsOutlined, CreditCardOutlined, AuditOutlined, ArrowDownOutlined, FilterOutlined, LoadingOutlined,
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import PageTitle from '../../components/ui/PageTitle';
 import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
-import { useCollection, useAuditLog, newId } from '../../store/DataStore';
+import { useCollection } from '../../store/DataStore';
+import { downloadsApi } from '../../api/superadminApi';
 import { COLORS } from '../../constants/theme';
-import { formatDateTime, formatDate, downloadCsv } from '../../utils/format';
+import { formatDateTime } from '../../utils/format';
 
 const DATA_TILES = [
     { key: 'Claims', icon: <FileTextOutlined /> },
@@ -19,101 +19,60 @@ const DATA_TILES = [
     { key: 'Audit Logs', icon: <AuditOutlined /> },
 ];
 const FORMATS = [{ value: 'csv', label: 'CSV' }, { value: 'excel', label: 'Excel (CSV)' }];
+const formatSize = (b = 0) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
 /**
- * Data Download -- pick a dataset, optional date range + organization
- * filter and a format, then "Generate Download" builds a real CSV from the
- * live store, downloads it and records it in Download History (where it
- * can be downloaded again until it expires).
+ * Data Download -- pick a dataset, optional date range + organization and a
+ * format; "Generate Download" builds the CSV on the server from the database,
+ * saves it in Download History (kept 7 days) and downloads it.
  */
 const DataDownloadPage = () => {
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: claims } = useCollection('claims');
-    const { items: users } = useCollection('users');
-    const { items: auditLogs } = useCollection('auditLogs');
-    const { items: history, add } = useCollection('downloads');
+    const { items: orgs } = useCollection('organizations');
+    const { items: history, loading, upsert, error } = useCollection('downloads');
     const [dataType, setDataType] = useState('Claims');
     const [from, setFrom] = useState(null);
     const [to, setTo] = useState(null);
     const [org, setOrg] = useState(null);
     const [format, setFormat] = useState(null);
     const [generating, setGenerating] = useState(false);
+    const [fetching, setFetching] = useState(null);
 
-    const orgOptions = useMemo(() => [...new Set([...claims.map((c) => c.organization), ...users.map((u) => u.organization)])].sort().map((o) => ({ value: o, label: o })), [claims, users]);
+    const orgOptions = useMemo(() => orgs.map((o) => ({ value: o.id, label: `${o.name} (${o.id})` })), [orgs]);
 
-    // dataset -> { rows, columns, dateField }
-    const buildDataset = (type) => {
-        switch (type) {
-            case 'Users':
-                return { rows: users, dateField: 'createdOn', columns: [
-                    { title: 'User ID', dataIndex: 'userId' }, { title: 'Name', dataIndex: 'name' }, { title: 'Email', dataIndex: 'email' },
-                    { title: 'Phone', dataIndex: 'phone' }, { title: 'Organization', dataIndex: 'organization' }, { title: 'Role', dataIndex: 'role' },
-                    { title: 'Status', dataIndex: 'status' }, { title: 'Branch', dataIndex: 'branch' }, { title: 'Created On', value: (r) => formatDateTime(r.createdOn) },
-                ] };
-            case 'Audit Logs':
-                return { rows: auditLogs, dateField: 'timestamp', columns: [
-                    { title: 'Time stamp', value: (r) => formatDateTime(r.timestamp) }, { title: 'User', dataIndex: 'user' }, { title: 'Role', dataIndex: 'role' },
-                    { title: 'Action', dataIndex: 'action' }, { title: 'IP/Device', value: (r) => `${r.ip} / ${r.device}` }, { title: 'Module', dataIndex: 'module' }, { title: 'Status', dataIndex: 'status' },
-                ] };
-            case 'Survey':
-                return { rows: claims.filter((c) => ['Survey', 'ILA', 'FLA'].includes(c.status)), dateField: 'intimationDate', columns: [
-                    { title: 'Claim ID', dataIndex: 'id' }, { title: 'Customer', dataIndex: 'customer' }, { title: 'Stage', dataIndex: 'status' },
-                    { title: 'Branch', dataIndex: 'branch' }, { title: 'Region', dataIndex: 'region' }, { title: 'Intimation Date', value: (r) => formatDate(r.intimationDate) },
-                ] };
-            case 'Payments':
-                return { rows: claims.filter((c) => c.status === 'Settled'), dateField: 'intimationDate', columns: [
-                    { title: 'Claim ID', dataIndex: 'id' }, { title: 'Customer', dataIndex: 'customer' }, { title: 'Amount (INR)', dataIndex: 'amount' },
-                    { title: 'Organization', dataIndex: 'organization' }, { title: 'Date', value: (r) => formatDate(r.intimationDate) },
-                ] };
-            default:
-                return { rows: claims, dateField: 'intimationDate', columns: [
-                    { title: 'Claim ID', dataIndex: 'id' }, { title: 'Customer', dataIndex: 'customer' }, { title: 'Claim Type', dataIndex: 'claimType' },
-                    { title: 'Handler', dataIndex: 'handler' }, { title: 'Amount', dataIndex: 'amount' }, { title: 'Status', dataIndex: 'status' },
-                    { title: 'Organization', dataIndex: 'organization' }, { title: 'Intimation Date', value: (r) => formatDate(r.intimationDate) },
-                ] };
+    const generate = async () => {
+        if (!format) return message.warning('Select a format first.');
+        if (from && to && to.isBefore(from, 'day')) return message.error('End date is before start date.');
+        setGenerating(true);
+        try {
+            const record = await downloadsApi.create({
+                dataType,
+                format,
+                ...(from ? { from: from.startOf('day').toISOString() } : {}),
+                ...(to ? { to: to.endOf('day').toISOString() } : {}),
+                ...(org && dataType !== 'Audit Logs' ? { organizationId: org } : {}),
+            });
+            upsert(record);
+            await downloadsApi.save(record);
+            message.success(`${record.fileName} generated (${record.rows} rows).`);
+        } catch (err) {
+            if (err.status === 422) message.warning(err.message);
+            else message.error(err.message);
+        } finally {
+            setGenerating(false);
         }
     };
 
-    const filteredRows = (type, range, orgName) => {
-        const ds = buildDataset(type);
-        const rows = ds.rows.filter((r) => {
-            const d = dayjs(r[ds.dateField]);
-            if (range?.from && d.isBefore(dayjs(range.from).startOf('day'))) return false;
-            if (range?.to && d.isAfter(dayjs(range.to).endOf('day'))) return false;
-            if (orgName && r.organization && r.organization !== orgName) return false;
-            return true;
-        });
-        return { rows, columns: ds.columns };
-    };
-
-    const generate = () => {
-        if (!format) return message.warning('Select a format first.');
-        if (from && to && to.isBefore(from)) return message.error('End date is before start date.');
-        const { rows, columns } = filteredRows(dataType, { from, to }, org);
-        if (!rows.length) return message.warning('No records for this selection -- widen the date range or clear the filter.');
-        setGenerating(true);
-        setTimeout(() => {
-            const period = from || to ? `${(from ?? dayjs('2025-01-01')).format('MMM_DD')}_to_${(to ?? dayjs()).format('MMM_DD')}` : dayjs().format('MMM_YYYY');
-            const fileName = `${dataType.replace(/\s+/g, '_')}_${period}.csv`;
-            downloadCsv(fileName, rows, columns);
-            const sizeKb = Math.max(1, Math.round((rows.length * columns.length * 14) / 1024));
-            add({
-                id: newId('DL'), fileName, dataType, generatedBy: 'Super Admin', generatedOn: new Date().toISOString(),
-                size: sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`, status: 'Ready',
-                params: { from: from?.toISOString() ?? null, to: to?.toISOString() ?? null, org },
-            });
-            log('Downloaded', 'Data');
-            setGenerating(false);
-            message.success(`${fileName} generated (${rows.length} rows).`);
-        }, 400);
-    };
-
-    const redownload = (row) => {
+    const redownload = async (row) => {
         if (row.status !== 'Ready') return message.error('This file has expired. Generate it again.');
-        const { rows, columns } = filteredRows(row.dataType, row.params, row.params?.org);
-        downloadCsv(row.fileName, rows, columns);
-        log('Downloaded', 'Data');
+        setFetching(row.id);
+        try {
+            await downloadsApi.save(row);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setFetching(null);
+        }
     };
 
     const stepTitle = 'text-base font-semibold m-0 mb-3';
@@ -182,6 +141,8 @@ const DataDownloadPage = () => {
             <DataTable
                 title="Download History"
                 dataSource={history}
+                loading={loading}
+                locale={{ emptyText: error ? `Could not load download history: ${error}` : 'No downloads yet.' }}
                 pageSize={6}
                 scrollX={960}
                 columns={[
@@ -189,14 +150,15 @@ const DataDownloadPage = () => {
                     { title: 'Data Type', dataIndex: 'dataType' },
                     { title: 'Generated By', dataIndex: 'generatedBy' },
                     { title: 'Generated On', dataIndex: 'generatedOn', render: formatDateTime },
-                    { title: 'File Size', dataIndex: 'size', align: 'center' },
+                    { title: 'Rows', dataIndex: 'rows', align: 'center' },
+                    { title: 'File Size', dataIndex: 'sizeBytes', align: 'center', render: formatSize },
                     { title: 'Status', dataIndex: 'status', align: 'center', render: (s) => <StatusTag status={s} minWidth={76} /> },
                     {
                         title: 'Action', key: 'a', align: 'center',
                         render: (_, r) => (
                             <Tooltip title={r.status === 'Ready' ? 'Download' : 'Expired'}>
-                                <button type="button" onClick={() => redownload(r)} aria-label={`Download ${r.fileName}`} className="p-1" style={{ color: r.status === 'Ready' ? COLORS.success : COLORS.textMuted, fontSize: 15 }}>
-                                    <ArrowDownOutlined />
+                                <button type="button" onClick={() => redownload(r)} disabled={fetching === r.id} aria-label={`Download ${r.fileName}`} className="p-1" style={{ color: r.status === 'Ready' ? COLORS.success : COLORS.textMuted, fontSize: 15 }}>
+                                    {fetching === r.id ? <LoadingOutlined /> : <ArrowDownOutlined />}
                                 </button>
                             </Tooltip>
                         ),

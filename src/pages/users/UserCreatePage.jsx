@@ -11,7 +11,7 @@ import { usersApi, adminUsersApi } from '../../api/superadminApi';
 import { isMasterAdmin, getAdminScope } from '../../auth/session';
 import CredentialsModal from '../../components/organizations/CredentialsModal';
 import { ROUTES } from '../../constants/routes';
-import { USER_ROLES, BRANCHES } from '../../data/seed';
+import { USER_ROLES, BRANCHES } from '../../data/options';
 
 const SCOPE_OPTIONS = [
     { value: 'all', label: 'All (SaaS + Service Provider)' },

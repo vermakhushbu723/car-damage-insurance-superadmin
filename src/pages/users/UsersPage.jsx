@@ -12,7 +12,7 @@ import { ViewButton } from '../../components/ui/RowActions';
 import { useCollection } from '../../store/DataStore';
 import { usersApi } from '../../api/superadminApi';
 import { ROUTES } from '../../constants/routes';
-import { USER_ROLES, USER_STATUSES } from '../../data/seed';
+import { USER_ROLES, USER_STATUSES } from '../../data/options';
 import { formatDateTime, matchesQuery, formatNumber } from '../../utils/format';
 
 const EMPTY = { q: '', org: 'All', role: 'All', status: 'All' };

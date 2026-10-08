@@ -18,7 +18,7 @@ const isRecent = (iso) => dayjs().diff(dayjs(iso), 'day') <= 30;
 /** Service Model list -- search + stat-card filters; eye opens the model's form. */
 const ServiceModelsPage = () => {
     const navigate = useNavigate();
-    const { items: models } = useCollection('serviceModels');
+    const { items: models, loading, error } = useCollection('serviceModels');
     const [q, setQ] = useState('');
     const [quick, setQuick] = useState('all');
 
@@ -49,8 +49,9 @@ const ServiceModelsPage = () => {
 
             <DataTable
                 dataSource={rows}
+                loading={loading}
                 scrollX={960}
-                locale={{ emptyText: 'No service models found.' }}
+                locale={{ emptyText: error ? `Could not load service models: ${error}` : models.length ? 'No service models found.' : 'No service models yet. Click "+ Add Service Models" to create one.' }}
                 columns={[
                     { title: 'Service Model', dataIndex: 'name', width: 230, render: (n) => <UserCell name={n} />, sorter: (a, b) => a.name.localeCompare(b.name) },
                     { title: 'Service Type', dataIndex: 'serviceType', align: 'center' },

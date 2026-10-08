@@ -1,12 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Form, Input, InputNumber, Select, AutoComplete, TimePicker, Button, Row, Col, Result, App } from 'antd';
+import { Form, Input, InputNumber, Select, AutoComplete, TimePicker, Button, Row, Col, Result, App, Spin } from 'antd';
 import dayjs from 'dayjs';
 import PageTitle from '../../components/ui/PageTitle';
 import StatusTag from '../../components/ui/StatusTag';
-import { useCollection, useAuditLog, newId } from '../../store/DataStore';
+import { useCollection } from '../../store/DataStore';
+import { serviceModelsApi } from '../../api/superadminApi';
 import { ROUTES } from '../../constants/routes';
-import { SERVICE_TYPES, APPLICABLE_FOR } from '../../data/seed';
+import { SERVICE_TYPES, APPLICABLE_FOR } from '../../data/options';
 import { COLORS } from '../../constants/theme';
 
 const NAME_SUGGESTIONS = ['Motor Claims', 'Health Claims', 'Policy Renewal', 'Survey and Inspection', 'Customer support', 'Claim Settlement', 'Endorsement', 'Pre-Inspection'];
@@ -27,8 +28,8 @@ const ServiceModelFormPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { message } = App.useApp();
-    const log = useAuditLog();
-    const { items: models, add, update } = useCollection('serviceModels');
+    const { items: models, loading, upsert } = useCollection('serviceModels');
+    const [saving, setSaving] = useState(false);
     const [form] = Form.useForm();
     const existing = id ? models.find((m) => m.id === id) : null;
 
@@ -38,11 +39,13 @@ const ServiceModelFormPage = () => {
         form.setFieldsValue({ ...existing, workingHours: [dayjs(from, TIME_FMT), dayjs(to, TIME_FMT)] });
     }, [existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    if (id && loading) return <div className="py-24 flex justify-center"><Spin /></div>;
+
     if (id && !existing) {
         return <Result status="404" title="Service model not found" extra={<Button type="primary" onClick={() => navigate(ROUTES.SERVICE_MODELS)}>Back to Service Model</Button>} />;
     }
 
-    const onFinish = (v) => {
+    const onFinish = async (v) => {
         const record = {
             name: v.name.trim(),
             serviceType: v.serviceType,
@@ -53,19 +56,19 @@ const ServiceModelFormPage = () => {
             escalationAfter: v.escalationAfter,
             escalationTo: v.escalationTo,
             priority: v.priority,
-            status: v.status ?? existing?.status ?? 'Active',
-            lastUploaded: new Date().toISOString(),
+            ...(existing && v.status ? { status: v.status } : {}),
         };
-        if (existing) {
-            update(existing.id, record);
-            log('Updated', 'Settings');
-            message.success(`${record.name} updated.`);
-        } else {
-            add({ id: newId('SM'), ...record });
-            log('Created', 'Settings');
-            message.success(`${record.name} created.`);
+        setSaving(true);
+        try {
+            const saved = existing ? await serviceModelsApi.update(existing.id, record) : await serviceModelsApi.create(record);
+            upsert(saved);
+            message.success(`${saved.name} ${existing ? 'updated' : 'created'}.`);
+            navigate(ROUTES.SERVICE_MODELS);
+        } catch (err) {
+            message.error(err.message);
+        } finally {
+            setSaving(false);
         }
-        navigate(ROUTES.SERVICE_MODELS);
     };
 
     return (
@@ -150,7 +153,7 @@ const ServiceModelFormPage = () => {
 
                 <div className="flex justify-end gap-3 mb-4">
                     <Button onClick={() => navigate(ROUTES.SERVICE_MODELS)}>Cancel</Button>
-                    <Button type="primary" htmlType="submit" className="min-w-[180px]">{existing ? 'Update Service Model' : 'Create Service Model'}</Button>
+                    <Button type="primary" htmlType="submit" loading={saving} className="min-w-[180px]">{existing ? 'Update Service Model' : 'Create Service Model'}</Button>
                 </div>
             </Form>
         </div>

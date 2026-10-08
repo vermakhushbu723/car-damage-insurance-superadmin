@@ -10,7 +10,7 @@ import FieldGrid from '../../components/forms/FieldRenderer';
 import useScrollSpy from '../../components/forms/useScrollSpy';
 import ModeToggle from '../../components/ui/ModeToggle';
 import { scopedMode } from '../../auth/session';
-import { useCollection, useStoreValue, useRoles } from '../../store/DataStore';
+import { useCollection, useRemoteValue, useRoles } from '../../store/DataStore';
 import { organizationsApi } from '../../api/superadminApi';
 import { ORG_FORMS, buildPlanSettingsSection, PLAN_SETTINGS_DEFAULTS } from '../../data/orgForms';
 import { MODE_LABEL } from '../../data/workflow';
@@ -38,7 +38,7 @@ const OrganizationFormPage = () => {
     const { message } = App.useApp();
     const { items: orgs, upsert } = useCollection('organizations');
     const { items: plans } = useCollection('plans');
-    const [workflow] = useStoreValue('workflow');
+    const [workflow] = useRemoteValue('workflows');
     const roles = useRoles();
     const [form] = Form.useForm();
 
@@ -255,7 +255,8 @@ const OrganizationFormRoute = () => {
     const { id } = useParams();
     const { loading } = useCollection('organizations');
     const { loading: plansLoading } = useCollection('plans');
-    if ((id && loading) || plansLoading) return <div className="py-24 flex justify-center"><Spin /></div>;
+    const [workflow] = useRemoteValue('workflows');
+    if ((id && loading) || plansLoading || !workflow) return <div className="py-24 flex justify-center"><Spin /></div>;
     return <OrganizationFormPage key={id ?? 'new'} />;
 };
 

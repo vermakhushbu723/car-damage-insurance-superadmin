@@ -6,7 +6,7 @@ import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
 import ReportFilters from '../../components/ui/ReportFilters';
 import { useCollection, useAuditLog } from '../../store/DataStore';
-import { AUDIT_ACTIONS, AUDIT_MODULES } from '../../data/seed';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '../../data/options';
 import { formatDateTime, downloadCsv } from '../../utils/format';
 
 const EMPTY = { user: 'All', role: 'All', module: 'All', action: 'All', status: 'All' };
