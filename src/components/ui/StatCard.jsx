@@ -4,10 +4,10 @@ import { COLORS, TONES } from '../../constants/theme';
 
 /**
  * KPI tile: tinted icon square + colored label, big value, optional
- * "↑ 12% VS Last Month" trend line. `onClick` makes the whole tile a
+ * "↑ 12% VS Last Month" trend line (or a plain green `note`). `onClick` makes the whole tile a
  * filter shortcut (list pages use it to filter the table by that status).
  */
-const StatCard = ({ label, value, icon, tone = 'blue', trend, trendLabel = 'VS Last Month', trendDown = false, onClick, active = false }) => {
+const StatCard = ({ label, value, icon, tone = 'blue', trend, trendLabel = 'VS Last Month', trendDown = false, note, onClick, active = false }) => {
     const t = TONES[tone] ?? TONES.blue;
     const Tag = onClick ? 'button' : 'div';
     return (
@@ -39,6 +39,7 @@ const StatCard = ({ label, value, icon, tone = 'blue', trend, trendLabel = 'VS L
                     {trendLabel}
                 </span>
             )}
+            {!trend && note && <span className="text-[11px] font-medium" style={{ color: COLORS.success }}>{note}</span>}
         </Tag>
     );
 };

@@ -33,7 +33,7 @@ const ServiceModelsPage = () => {
 
     return (
         <div>
-            <PageTitle title="Service Model" />
+            <PageTitle title="Service Provider Model" />
 
             <div className="filter-bar flex flex-wrap items-center gap-2 mb-3">
                 <Input className="w-full sm:flex-1 sm:max-w-[420px]" placeholder="Search Services,models,Policies,Models" suffix={<SearchOutlined />} allowClear value={q} onChange={(e) => setQ(e.target.value)} />

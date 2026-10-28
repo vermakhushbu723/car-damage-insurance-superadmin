@@ -19,6 +19,7 @@ import { COLORS } from '../../constants/theme';
 import { ROUTES, orgPath } from '../../constants/routes';
 import { claimsTrend, claimsInPeriod } from '../../utils/claimStats';
 import useSystemAlerts from '../../hooks/useSystemAlerts';
+import ServiceProviderDashboard from './ServiceProviderDashboard';
 import { formatDate, formatNumber } from '../../utils/format';
 
 const PERIODS = ['This Month', 'Last Month', 'This Year'].map((p) => ({ value: p, label: p }));
@@ -42,6 +43,7 @@ const pct = (n, total) => `${String(n).padStart(2, '0')}(${total ? Math.round((n
  * Provider are run by separate super admins, so everything on the page --
  * KPIs, alerts, status panel, donut, tables -- is scoped to the selected
  * mode's organizations only; neither mode shows the other's details.
+ * Service Provider mode has its own layout (ServiceProviderDashboard).
  */
 const OverviewDashboardPage = () => {
     const navigate = useNavigate();
@@ -122,12 +124,14 @@ const OverviewDashboardPage = () => {
         { label: isSaas ? 'Total Revenue(MTD)' : 'Service Fee Revenue(MTD)', value: `₹ ${formatNumber(revenue)}`, icon: <DollarOutlined />, tone: 'teal', to: isSaas ? ROUTES.SAAS_PLANS : ROUTES.ORGANIZATIONS },
     ];
 
+    const modeToggle = <ModeToggle value={mode} onChange={(v) => setParams({ mode: v === 'saas' ? 'saas' : 'service-provider' })} />;
+    if (!isSaas) {
+        return <ServiceProviderDashboard orgs={modeOrgs} users={modeUsers} claims={modeClaims} title={<PageTitle title="Super Admin Dashboard" extra={modeToggle} />} />;
+    }
+
     return (
         <div>
-            <PageTitle
-                title="Dashboard"
-                extra={<ModeToggle value={mode} onChange={(v) => setParams({ mode: v === 'saas' ? 'saas' : 'service-provider' })} />}
-            />
+            <PageTitle title="Dashboard" extra={modeToggle} />
 
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-3">
                 {stats.map((s) => <StatCard key={s.label} {...s} onClick={() => navigate(s.to)} />)}

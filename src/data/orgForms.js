@@ -29,7 +29,8 @@ const INSURER = {
             profileButton: true,
             fields: [
                 { name: 'entityType', label: 'Type', type: 'select', placeholder: 'Broker/Insurer/Surveyor/Others', options: ['Broker', 'Insurer', 'Surveyor', 'Others'] },
-                { name: 'ibimaId', label: 'Unique IBima Asist ID', type: 'auto', placeholder: 'Auto Generated' },
+                // Typed by hand or left empty for the next ORG-#### (locked once the org exists).
+                { name: 'ibimaId', label: 'Unique IBima Asist ID', placeholder: 'Auto Generated / manual', manualId: true },
                 { name: 'companyName', label: 'Company Name', placeholder: 'Eg. MS_1234567890', required: true },
                 { name: 'cin', label: 'CIN', placeholder: 'Enter CIN Number' },
                 { name: 'irdaiLicense', label: 'IRDAI License', placeholder: 'Eg. MS_1234567890' },
@@ -49,6 +50,7 @@ const INSURER = {
         },
         {
             title: 'SAAS ADMIN ( NATIONAL MANAGER)',
+            modeTitles: { serviceProvider: 'SERVICE PROVIDER ADMIN ( NATIONAL MANAGER)' },
             fields: [
                 { name: 'adminFullName', label: 'Admin full name', placeholder: 'Enter Admin Full Name', required: true },
                 { name: 'adminType', label: 'Admin Type', type: 'select', placeholder: 'Select Admin', options: ['National Manager', 'Regional Manager', 'Organisation admin'] },

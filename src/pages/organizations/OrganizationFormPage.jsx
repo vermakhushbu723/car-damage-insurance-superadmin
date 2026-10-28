@@ -24,7 +24,8 @@ const TYPE_OPTIONS = Object.keys(ORG_FORMS).map((t) => ({ value: t, label: t }))
  * dropdown swaps the whole form (Insurer / Broker / Surveyor / Workshop,
  * see data/orgForms.js). On /organizations/:id the form opens read-only
  * with the saved values; "Edit & Modify Profile" unlocks it.
- * "Create Pilot ID" / "Create Working ID" both create an Active org (the
+ * "+ Add Pilot ID" / "Permanent ID" (top) and "Create Pilot ID" / "Create
+ * Working ID" (bottom) both create an Active org (Permanent = Working; the
  * choice is kept as `idType`) and then show the generated Organization ID,
  * admin login ID and temporary password in CredentialsModal.
  * The last section, PLAN & SETTINGS, finalizes the org's plan, validity,
@@ -83,8 +84,13 @@ const OrganizationFormPage = () => {
     );
     const sections = useMemo(() => config.sections.map((s) => ({
         ...s,
-        fields: s.fields.map((f) => (f.optionsFrom === 'insurers' ? { ...f, options: insurerOptions } : f)),
-    })), [config, insurerOptions]);
+        title: s.modeTitles?.[mode] ?? s.title,
+        fields: s.fields.map((f) => {
+            if (f.optionsFrom === 'insurers') return { ...f, options: insurerOptions };
+            if (f.manualId && isView) return { ...f, disabled: true };
+            return f;
+        }),
+    })), [config, insurerOptions, mode, isView]);
 
     // (Re)load values whenever the type or the viewed org changes.
     useEffect(() => {
@@ -155,7 +161,8 @@ const OrganizationFormPage = () => {
                 message.success(`${profile.name} updated (${idType} ID).`);
                 navigate(ROUTES.ORGANIZATIONS);
             } else {
-                const { organization, credentials } = await organizationsApi.create({ ...profile, type, admin: adminFromForm(values) });
+                const ibimaId = values.ibimaId?.trim() || undefined;
+                const { organization, credentials } = await organizationsApi.create({ ...profile, type, ibimaId, admin: adminFromForm(values) });
                 upsert(organization);
                 setCredentials({
                     orgId: organization.id,
@@ -185,7 +192,10 @@ const OrganizationFormPage = () => {
 
     return (
         <div>
-            <h1 className="text-xl md:text-2xl font-bold m-0" style={{ color: COLORS.headingBlue }}>Organizations/Vendors</h1>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <h1 className="text-xl md:text-2xl font-bold m-0" style={{ color: COLORS.headingBlue }}>Organizations/Vendors</h1>
+                <ModeToggle value={mode} onChange={(v) => (editing ? setMode(v) : message.info('Click "Edit & Modify Profile" to change the mode.'))} />
+            </div>
             <h2 className="text-lg font-semibold mt-1 mb-4" style={{ color: COLORS.textPrimary }}>
                 {existing ? existing.name : type}
                 {existing && <span className="ml-2 text-xs font-medium" style={{ color: COLORS.textSecondary }}>({existing.id} · {type})</span>}
@@ -204,7 +214,10 @@ const OrganizationFormPage = () => {
                             disabled={isView}
                             className="w-full sm:w-[320px]"
                         />
-                        <ModeToggle value={mode} onChange={(v) => (editing ? setMode(v) : message.info('Click "Edit & Modify Profile" to change the mode.'))} />
+                        <div className="flex flex-wrap gap-3 sm:ml-auto">
+                            <Button type="primary" className="min-w-[150px]" disabled={!editing} loading={submitting === 'pilot'} onClick={() => save('pilot')}>+ Add Pilot ID</Button>
+                            <Button type="primary" className="min-w-[150px]" disabled={!editing} loading={submitting === 'working'} onClick={() => save('working')}>Permanent ID</Button>
+                        </div>
                         {existing && (
                             <Button size="small" icon={<ApartmentOutlined />} disabled={false} onClick={() => navigate(`${ROUTES.WORKFLOW}?org=${existing.id}`)}>
                                 View Workflow

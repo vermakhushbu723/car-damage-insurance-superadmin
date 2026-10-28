@@ -2,9 +2,9 @@ import dayjs from 'dayjs';
 
 // Claim stages grouped the way the Claim Report tiles count them.
 export const CLAIM_GROUPS = {
-    survey: ['Intimation', 'Survey'],
-    assessment: ['AI ILA', 'ILA', 'FLA'],
-    settlement: ['Settled'],
+    survey: ['Intimation', 'Handler Allocation', 'Survey'],
+    assessment: ['AI ILA', 'ILA', 'Handler ILA', 'FLA'],
+    settlement: ['Fee Bill', 'DMS', 'Settled'],
     rejected: ['Rejected'],
 };
 export const REGION_ORDER = ['North', 'East', 'West', 'South', 'Central'];

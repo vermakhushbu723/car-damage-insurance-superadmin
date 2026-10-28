@@ -13,7 +13,8 @@ export const BRANCHES = ['Mumbai HQ', 'Delhi Branch', 'Banglore', 'Pune Branch',
 export const SERVICE_TYPES = ['Claims', 'Policy', 'Survey', 'Customer Service'];
 export const APPLICABLE_FOR = ['Motor', 'Health', 'All', 'Motor, Health'];
 
-export const CLAIM_STAGES = ['Intimation', 'Survey', 'AI ILA', 'ILA', 'FLA', 'Settled', 'Rejected'];
+// Same list as superadmin-service CLAIM_STATUSES (SaaS + Service Provider stages).
+export const CLAIM_STAGES = ['Intimation', 'Handler Allocation', 'Survey', 'AI ILA', 'ILA', 'Handler ILA', 'FLA', 'Fee Bill', 'DMS', 'Settled', 'Rejected'];
 export const REGIONS = ['North', 'East', 'West', 'South', 'Central'];
 export const PRODUCT_TYPES = ['Pvt Car', 'Commercial Vehicle', 'Two Wheelers'];
 const REGION_STATES = {

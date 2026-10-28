@@ -56,6 +56,10 @@ export const STATUS_STYLES = {
     Survey: { bg: '#DCE4F5', color: '#5B7BC7' },
     'AI ILA': { bg: '#E6E3FA', color: '#8B82DA' },
     FLA: { bg: '#E0F2FE', color: '#0284C7' },
+    'Handler Allocation': { bg: '#D1EEDD', color: '#1E8E4E' },
+    'Handler ILA': { bg: '#EAE4FB', color: '#7C3AED' },
+    'Fee Bill': { bg: '#F9D7D7', color: '#C81E1E' },
+    DMS: { bg: '#E2E8F0', color: '#64748B' },
     Settled: { bg: '#D1EEDD', color: '#1E8E4E' },
     Available: { bg: '#E6EEFB', color: '#0B4CD0' },
 };
