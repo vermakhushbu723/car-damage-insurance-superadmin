@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ROUTES } from '../constants/routes';
 import RequireAuth from '../auth/RequireAuth';
 import AppLayout from '../components/layout/AppLayout';
-import { scopedMode } from '../auth/session';
 
 import LoginPage from '../pages/auth/LoginPage';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
@@ -11,7 +10,7 @@ import OverviewDashboardPage from '../pages/dashboard/OverviewDashboardPage';
 
 import OrganizationsPage from '../pages/organizations/OrganizationsPage';
 import OrganizationFormPage from '../pages/organizations/OrganizationFormPage';
-import SaasPlansPage from '../pages/plans/SaasPlansPage';
+import PlansPage from '../pages/plans/PlansPage';
 import AdminUsersPage from '../pages/users/AdminUsersPage';
 
 import UsersPage from '../pages/users/UsersPage';
@@ -26,7 +25,7 @@ import WorkflowConfigPage from '../pages/workflow/WorkflowConfigPage';
 
 import ClaimReportPage from '../pages/reports/ClaimReportPage';
 import UserReportPage from '../pages/reports/UserReportPage';
-import SaasUsageReportPage from '../pages/reports/SaasUsageReportPage';
+import UsageReportPage from '../pages/reports/UsageReportPage';
 import DataDownloadPage from '../pages/reports/DataDownloadPage';
 
 import AuditLogsPage from '../pages/system/AuditLogsPage';
@@ -34,8 +33,10 @@ import SystemSettingsPage from '../pages/system/SystemSettingsPage';
 
 // Paths from the previous sidebar design, redirected so old bookmarks still land somewhere sensible.
 const LEGACY_REDIRECTS = [
-    ['/claim/*', `${ROUTES.OVERVIEW}?mode=saas`],
-    ['/preinspection/*', `${ROUTES.OVERVIEW}?mode=saas`],
+    ['/claim/*', ROUTES.OVERVIEW],
+    ['/preinspection/*', ROUTES.OVERVIEW],
+    ['/saas-plans', ROUTES.PLANS],
+    ['/reports/saas-usage', ROUTES.USAGE_REPORT],
     ['/insurer/*', `${ROUTES.ORGANIZATION_NEW}?type=Insurer`],
     ['/broker', `${ROUTES.ORGANIZATION_NEW}?type=Broker`],
     ['/surveyor', `${ROUTES.ORGANIZATION_NEW}?type=Surveyor`],
@@ -48,7 +49,7 @@ const LEGACY_REDIRECTS = [
 // "/dashboard" (login landing, logo, old links) opens the overview dashboard
 // in the signed-in super admin's mode: SaaS, or Service Provider for the SP admin.
 const DashboardHome = () => (
-    <Navigate to={`${ROUTES.OVERVIEW}?mode=${scopedMode('saas') === 'serviceProvider' ? 'service-provider' : 'saas'}`} replace />
+    <Navigate to={ROUTES.OVERVIEW} replace />
 );
 
 const AppRoutes = () => (
@@ -63,7 +64,7 @@ const AppRoutes = () => (
             <Route path={ROUTES.ORGANIZATIONS} element={<OrganizationsPage />} />
             <Route path={ROUTES.ORGANIZATION_NEW} element={<OrganizationFormPage key="new" />} />
             <Route path={ROUTES.ORGANIZATION_VIEW} element={<OrganizationFormPage />} />
-            <Route path={ROUTES.SAAS_PLANS} element={<SaasPlansPage />} />
+            <Route path={ROUTES.PLANS} element={<PlansPage />} />
             <Route path={ROUTES.ADMIN_USERS} element={<AdminUsersPage />} />
             <Route path={ROUTES.ADMIN_USER_NEW} element={<UserCreatePage key="admin" variant="admin" />} />
 
@@ -80,7 +81,7 @@ const AppRoutes = () => (
 
             <Route path={ROUTES.CLAIM_REPORT} element={<ClaimReportPage />} />
             <Route path={ROUTES.USER_REPORT} element={<UserReportPage />} />
-            <Route path={ROUTES.SAAS_USAGE} element={<SaasUsageReportPage />} />
+            <Route path={ROUTES.USAGE_REPORT} element={<UsageReportPage />} />
             <Route path={ROUTES.DATA_DOWNLOAD} element={<DataDownloadPage />} />
 
             <Route path={ROUTES.AUDIT_LOGS} element={<AuditLogsPage />} />

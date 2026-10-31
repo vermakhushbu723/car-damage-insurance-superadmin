@@ -10,12 +10,12 @@ import { COLORS } from '../../constants/theme';
 import { formatNumber } from '../../utils/format';
 
 /**
- * SaaS Plans & Subscription. KPIs are computed from organizations' plans;
+ * Plans & Subscription. KPIs are computed from organizations' plans;
  * "Edit Plan" edits price/limit/features, "Select Plan" assigns the plan to
  * one or more organizations (which moves the KPIs and the org list's
  * Subscription column).
  */
-const SaasPlansPage = () => {
+const PlansPage = () => {
     const { message } = App.useApp();
     const { items: plans, loading: plansLoading, upsert: upsertPlan, reload: reloadPlans } = useCollection('plans');
     const { items: orgs, reload: reloadOrgs } = useCollection('organizations');
@@ -81,7 +81,7 @@ const SaasPlansPage = () => {
 
     return (
         <div>
-            <PageTitle title="SaaS Plans & Subscription" />
+            <PageTitle title="Plans & Subscription" />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 <StatCard label="Total Plans" value={kpi.total} icon={<FileTextOutlined />} tone="blue" />
@@ -159,4 +159,4 @@ const SaasPlansPage = () => {
     );
 };
 
-export default SaasPlansPage;
+export default PlansPage;

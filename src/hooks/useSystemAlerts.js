@@ -3,12 +3,12 @@ import dayjs from 'dayjs';
 import { useCollection } from '../store/DataStore';
 import { ROUTES } from '../constants/routes';
 
-const MODE_LABEL = { saas: 'SaaS', serviceProvider: 'Service Provider' };
+const MODE_LABEL = { serviceProvider: 'Service Provider' };
 
 /**
  * System alerts computed from the database: subscriptions/contracts expiring
  * in 30 days, expired ones, users not active, IDs pending activation.
- * `mode` = 'saas' | 'serviceProvider' limits them to that mode's organizations;
+ * `mode` = 'serviceProvider' limits them to that mode's organizations;
  * null = every organization this admin can see.
  */
 export default function useSystemAlerts(mode = null) {
@@ -25,10 +25,10 @@ export default function useSystemAlerts(mode = null) {
         const expired = scoped.filter(isExpired).length;
         const pending = scoped.filter((o) => o.status === 'Pending').length;
         const inactiveUsers = users.filter((u) => ids.has(u.organizationId) && u.status !== 'Active').length;
-        const term = mode === 'serviceProvider' ? 'Contract' : 'Subscription';
+        const term = 'Contract';
         const prefix = label ? `${label} ` : '';
         return [
-            { id: 'expiring', icon: 'warning', count: expiring, text: `${expiring} ${prefix}${term}${expiring === 1 ? '' : 's'} Will Expire In 30 Days`, to: mode === 'serviceProvider' ? ROUTES.ORGANIZATIONS : ROUTES.SAAS_PLANS },
+            { id: 'expiring', icon: 'warning', count: expiring, text: `${expiring} ${prefix}${term}${expiring === 1 ? '' : 's'} Will Expire In 30 Days`, to: ROUTES.ORGANIZATIONS },
             { id: 'expired', icon: 'info', count: expired, text: `${expired} ${prefix}Organization${expired === 1 ? ' Has' : 's Have'} Expired ${term}`, to: ROUTES.ORGANIZATIONS },
             { id: 'inactive', icon: 'warning', count: inactiveUsers, text: `${inactiveUsers} User${inactiveUsers === 1 ? ' Is' : 's Are'} Not Active`, to: ROUTES.USER_ACTIVATION },
             { id: 'pending', icon: 'info', count: pending, text: `${pending} ${prefix}ID${pending === 1 ? ' Is' : 's Are'} Pending Activation`, to: ROUTES.ORGANIZATIONS },

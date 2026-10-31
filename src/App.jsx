@@ -20,7 +20,6 @@ const EXTRA_TITLES = [
 // Clean tab names (the sidebar keeps the design's own spelling).
 const TITLE_FIXES = {
     'Organzitions/Vendors': 'Organizations/Vendors',
-    'SaaS  Usage Report': 'SaaS Usage Report',
     'System Setings': 'System Settings',
 };
 

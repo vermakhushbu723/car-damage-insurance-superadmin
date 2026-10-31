@@ -9,7 +9,7 @@ export const ROUTES = {
     ORGANIZATIONS: '/organizations',
     ORGANIZATION_NEW: '/organizations/new',
     ORGANIZATION_VIEW: '/organizations/:id',
-    SAAS_PLANS: '/saas-plans',
+    PLANS: '/plans',
     ADMIN_USERS: '/admin-users',
     ADMIN_USER_NEW: '/admin-users/new',
 
@@ -26,7 +26,7 @@ export const ROUTES = {
 
     CLAIM_REPORT: '/reports/claims',
     USER_REPORT: '/reports/users',
-    SAAS_USAGE: '/reports/saas-usage',
+    USAGE_REPORT: '/reports/service-provider',
     DATA_DOWNLOAD: '/data-download',
 
     AUDIT_LOGS: '/audit-logs',

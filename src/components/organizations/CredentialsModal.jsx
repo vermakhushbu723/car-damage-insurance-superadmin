@@ -3,6 +3,10 @@ import { Modal, Button, App } from 'antd';
 import { CheckCircleFilled, CopyOutlined, DownloadOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import { COLORS } from '../../constants/theme';
 
+/** Where a login ID issued here works (admin-service creates it); null = admin-service not connected. */
+export const NOT_CONNECTED = 'The Admin portal is not connected (ADMIN_SERVICE_URL / ADMIN_SERVICE_KEY), so this login works only in this console.';
+export const signInOn = (portal) => portal ?? 'Not connected';
+
 /**
  * Shown right after an organization ID is created: the generated
  * Organization ID, admin login ID and temporary password, with copy /
@@ -22,7 +26,7 @@ const CredentialsModal = ({ data, onClose }) => {
         ['Admin Login ID', data.loginId],
         ...(data.email ? [['Registered Email', data.email]] : []),
         ['Temporary Password', data.password, 'password'],
-        ['Valid Till', data.validTill],
+        ['Sign In On', signInOn(data.portal)],
     ];
     const asText = rows.map(([k, v]) => `${k}: ${v}`).join('\n');
 
@@ -64,7 +68,7 @@ const CredentialsModal = ({ data, onClose }) => {
             ]}
         >
             <p className="text-[13px] mt-0 mb-3" style={{ color: COLORS.textSecondary }}>
-                {data.note ?? 'Share these login details with the organization admin. They will be asked to change the password at first login.'}
+                {data.note ?? (data.portal ? `Share these login details with the organization admin. They sign in on the ${data.portal} with the Login ID (or email) and this password.` : NOT_CONNECTED)}
             </p>
             <div className="rounded-md overflow-hidden" style={{ border: `1px solid ${COLORS.border}` }}>
                 {rows.map(([label, value, kind], i) => (

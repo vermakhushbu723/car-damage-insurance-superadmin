@@ -56,8 +56,8 @@ export const SCOPE_TITLE = { all: 'Super Admin', saas: 'SaaS Super Admin', servi
 /** 'all' | 'saas' | 'serviceProvider' for the signed-in super admin (set on their account in the database). */
 export const getAdminScope = () => getCurrentAdmin()?.scope ?? 'all';
 
-/** The mode a page must use: a scoped admin's own mode, otherwise the requested one. */
-export const scopedMode = (requested) => {
-    const scope = getAdminScope();
-    return scope === 'all' ? requested : scope;
-};
+/** This console is the Service Provider edition: every page works in Service Provider mode. */
+export const EDITION_MODE = 'serviceProvider';
+
+/** The mode a page must use -- always the edition's (kept as a function for the pages that ask). */
+export const scopedMode = () => EDITION_MODE;

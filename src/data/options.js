@@ -4,7 +4,7 @@
 
 export const ORG_TYPES = ['Insurer', 'Broker', 'Surveyor', 'Workshop'];
 export const ORG_STATUSES = ['Active', 'Pending', 'Suspended', 'Expired'];
-export const SERVICE_MODES = ['SaaS', 'Service Provider'];
+export const SERVICE_MODES = ['Service Provider'];
 
 export const USER_ROLES = ['Manager', 'Surveyor', 'Admin', 'Claim Handler', 'Call Center', 'TCT', 'Sr TCT', 'National Manager'];
 export const USER_STATUSES = ['Active', 'Pending', 'Inactive', 'Suspended'];

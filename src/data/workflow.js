@@ -2,14 +2,13 @@
 // themselves (stages, rules, triggers) live in the database
 // (superadmin-service, GET /api/v1/workflows).
 
-export const OPERATING_MODELS = ['SaaS-Insurer operates claim', 'IBima assist service workflow'];
+export const OPERATING_MODELS = ['IBima assist service workflow'];
 
-// Mode key <-> the organization's `serviceModel` value.
-export const modeOfOrg = (org) => (org?.serviceModel === 'Service Provider' ? 'serviceProvider' : 'saas');
-export const SERVICE_MODEL_OF_MODE = { saas: 'SaaS', serviceProvider: 'Service Provider' };
-export const MODE_LABEL = { saas: 'SaaS', serviceProvider: 'Service Provider' };
+// Mode key -> the organization's `serviceModel` value.
+export const SERVICE_MODEL_OF_MODE = { serviceProvider: 'Service Provider' };
+export const MODE_LABEL = { serviceProvider: 'Service Provider' };
 export const ADMIN_PROFILES = ['HO/National Manager', 'Regional Manager', 'Branch Manager'];
-export const FEE_BILL_MODELS = ['Automatic-based on product model', 'Manual entry', 'Not Applicable-SaaS'];
+export const FEE_BILL_MODELS = ['Automatic-based on product model', 'Manual entry'];
 export const CHANNEL_OPTIONS = ['Whatsapp', 'email', 'SMS', 'Letter', 'In - app'];
 export const AUTO_ROLES = ['TCT', 'Sr TCT', 'Claim Handler', 'Internal Surveyor', 'National Manager', 'HO/Admin'];
 

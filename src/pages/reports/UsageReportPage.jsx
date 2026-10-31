@@ -28,12 +28,12 @@ const change = (now, before) => (before ? Math.round(((now - before) / before) *
 const trendProps = (pct) => ({ trend: `${Math.abs(pct)}%`, trendDown: pct < 0 });
 
 /**
- * SaaS Report Usage -- organizations/users/claims from the database, plus
+ * Service Provider Report Usage -- organizations/users/claims from the database, plus
  * activity metrics from GET /reports/usage (sign-ins, API requests, module
  * usage from the audit trail, database size). Trends compare the last 30
  * days with the 30 before.
  */
-const SaasUsageReportPage = () => {
+const UsageReportPage = () => {
     const navigate = useNavigate();
     const { items: orgs } = useCollection('organizations');
     const { items: users } = useCollection('users');
@@ -112,4 +112,4 @@ const SaasUsageReportPage = () => {
     );
 };
 
-export default SaasUsageReportPage;
+export default UsageReportPage;

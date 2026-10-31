@@ -84,13 +84,11 @@ const ClaimReportPage = () => {
 
     const orgDonut = useMemo(() => {
         const total = orgs.length || 1;
-        const saas = orgs.filter((o) => o.serviceModel === 'SaaS' && !['Suspended', 'Expired'].includes(o.status)).length;
         const sp = orgs.filter((o) => o.serviceModel === 'Service Provider' && !['Suspended', 'Expired'].includes(o.status)).length;
         const susp = orgs.filter((o) => o.status === 'Suspended').length;
         const exp = orgs.filter((o) => o.status === 'Expired').length;
         const fmt = (n) => `${String(n).padStart(2, '0')}(${Math.round((n / total) * 100)}%)`;
         return [
-            { label: 'SaaS', value: saas, color: '#1F6FEB', display: fmt(saas) },
             { label: 'Service Provider', value: sp, color: '#35B44A', display: fmt(sp) },
             { label: 'Suspended', value: susp, color: '#F03E3E', display: fmt(susp) },
             { label: 'Expired', value: exp, color: '#D9D9D9', display: fmt(exp) },

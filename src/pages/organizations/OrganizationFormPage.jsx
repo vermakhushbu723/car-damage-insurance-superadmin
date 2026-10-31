@@ -3,16 +3,15 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Form, Select, Button, App, Result, Spin } from 'antd';
 import { ApartmentOutlined } from '@ant-design/icons';
 import CredentialsModal from '../../components/organizations/CredentialsModal';
-import dayjs from 'dayjs';
 import FormSection from '../../components/forms/FormSection';
 import StepNav from '../../components/forms/StepNav';
 import FieldGrid from '../../components/forms/FieldRenderer';
 import useScrollSpy from '../../components/forms/useScrollSpy';
 import ModeToggle from '../../components/ui/ModeToggle';
-import { scopedMode } from '../../auth/session';
-import { useCollection, useRemoteValue, useRoles } from '../../store/DataStore';
+import { EDITION_MODE } from '../../auth/session';
+import { useCollection, useRemoteValue } from '../../store/DataStore';
 import { organizationsApi } from '../../api/superadminApi';
-import { ORG_FORMS, buildPlanSettingsSection, PLAN_SETTINGS_DEFAULTS } from '../../data/orgForms';
+import { ORG_FORMS } from '../../data/orgForms';
 import { MODE_LABEL } from '../../data/workflow';
 import { ROUTES } from '../../constants/routes';
 import { COLORS } from '../../constants/theme';
@@ -27,10 +26,10 @@ const TYPE_OPTIONS = Object.keys(ORG_FORMS).map((t) => ({ value: t, label: t }))
  * "+ Add Pilot ID" / "Permanent ID" (top) and "Create Pilot ID" / "Create
  * Working ID" (bottom) both create an Active org (Permanent = Working; the
  * choice is kept as `idType`) and then show the generated Organization ID,
- * admin login ID and temporary password in CredentialsModal.
- * The last section, PLAN & SETTINGS, finalizes the org's plan, validity,
- * permissions, modules and channels at creation; its claim workflow is
- * assigned automatically from the SaaS / Service Provider mode.
+ * admin login ID and temporary password in CredentialsModal; that login
+ * is also created in admin-service, so it signs in on the Admin portal.
+ * Service Provider organizations have no plan (the Figma form has no Plan
+ * step); the Service Provider claim workflow is assigned automatically.
  */
 const OrganizationFormPage = () => {
     const { id } = useParams();
@@ -38,9 +37,7 @@ const OrganizationFormPage = () => {
     const navigate = useNavigate();
     const { message } = App.useApp();
     const { items: orgs, upsert } = useCollection('organizations');
-    const { items: plans } = useCollection('plans');
     const [workflow] = useRemoteValue('workflows');
-    const roles = useRoles();
     const [form] = Form.useForm();
 
     const existing = id ? orgs.find((o) => o.id === id) : null;
@@ -48,34 +45,13 @@ const OrganizationFormPage = () => {
     const initialType = existing?.type ?? (ORG_FORMS[params.get('type')] ? params.get('type') : 'Insurer');
 
     const [type, setType] = useState(initialType);
-    const [mode, setMode] = useState(existing ? (existing.serviceModel === 'Service Provider' ? 'serviceProvider' : 'saas') : scopedMode('saas'));
+    const mode = EDITION_MODE;
     const [editing, setEditing] = useState(!isView);
     const [submitting, setSubmitting] = useState(null);
     const [credentials, setCredentials] = useState(null); // shown after a new ID is created
 
-    const baseConfig = ORG_FORMS[type];
+    const config = ORG_FORMS[type];
     const [sectionRefs, activeSection, scrollTo] = useScrollSpy([type]);
-
-    // Every type's form ends with PLAN & SETTINGS (fields depend on the mode).
-    const config = useMemo(() => ({
-        ...baseConfig,
-        steps: [...baseConfig.steps, { label: 'Plan & Settings', section: baseConfig.sections.length }],
-        sections: [...baseConfig.sections, buildPlanSettingsSection({ mode, plans, roles: roles.list })],
-    }), [baseConfig, mode, plans, roles.list]);
-
-    const workflowLabel = `${MODE_LABEL[mode]} workflow — ${workflow[mode].stages.length} stages (${workflow[mode].stages.join(' → ')})`;
-    const planId = Form.useWatch('plan', form);
-    const start = Form.useWatch('subscriptionStart', form);
-    const validity = Form.useWatch('validityMonths', form);
-
-    // Derived, read-only fields of PLAN & SETTINGS.
-    useEffect(() => {
-        form.setFieldsValue({
-            workflowName: workflowLabel,
-            userLimit: plans.find((p) => p.id === planId)?.userLimit ?? '',
-            validTill: start && validity ? dayjs(start).add(validity, 'month').format('DD MMM YYYY') : '',
-        });
-    }, [form, workflowLabel, planId, start, validity, plans, type]);
 
     // Live option lists (e.g. "Empanelled insurers" = current Insurer orgs).
     const insurerOptions = useMemo(
@@ -84,25 +60,18 @@ const OrganizationFormPage = () => {
     );
     const sections = useMemo(() => config.sections.map((s) => ({
         ...s,
-        title: s.modeTitles?.[mode] ?? s.title,
         fields: s.fields.map((f) => {
             if (f.optionsFrom === 'insurers') return { ...f, options: insurerOptions };
             if (f.manualId && isView) return { ...f, disabled: true };
             return f;
         }),
-    })), [config, insurerOptions, mode, isView]);
+    })), [config, insurerOptions, isView]);
 
     // (Re)load values whenever the type or the viewed org changes.
     useEffect(() => {
         form.resetFields();
-        const base = { ...PLAN_SETTINGS_DEFAULTS, subscriptionStart: dayjs().startOf('day').toISOString(), ...config.initialValues };
+        const base = { ...config.initialValues };
         if (existing) {
-            // Orgs created before PLAN & SETTINGS existed: fill it from their record.
-            Object.assign(base, {
-                plan: existing.plan,
-                subscriptionStart: existing.createdOn,
-                validityMonths: Math.max(1, dayjs(existing.subscriptionExpiry).diff(dayjs(existing.createdOn), 'month')),
-            });
             Object.assign(base, { [config.nameField]: existing.name, ...existing.form });
             base.ibimaId = existing.id;
             base.adminId = `${existing.id}-ADM`;
@@ -139,21 +108,10 @@ const OrganizationFormPage = () => {
         const profile = {
             name: values[config.nameField],
             idType,
-            serviceModel: mode === 'saas' ? 'SaaS' : 'Service Provider',
-            // Finalized at ID creation (PLAN & SETTINGS):
-            plan: values.plan,
-            subscriptionStart: values.subscriptionStart,
-            validityMonths: values.validityMonths,
+            serviceModel: 'Service Provider',
             workflow: { mode, stages: [...workflow[mode].stages], assignedOn: new Date().toISOString() },
-            settings: {
-                billingCycle: values.billingCycle,
-                roleTemplate: values.roleTemplate,
-                modules: values.modules ?? [],
-                channels: values.channels ?? [],
-                ...(mode === 'serviceProvider' ? { feeBillModel: values.feeBillModel, feePerClaim: values.feePerClaim ?? null } : {}),
-            },
             // Derived/read-only fields are recomputed on load; passwords never go into the stored form.
-            form: Object.fromEntries(Object.entries(values).filter(([k]) => !['workflowName', 'userLimit', 'validTill', 'ibimaId', 'adminId', 'adminUserId', 'userId'].includes(k))),
+            form: Object.fromEntries(Object.entries(values).filter(([k]) => !['ibimaId', 'adminId', 'adminUserId', 'userId'].includes(k))),
         };
         try {
             if (existing) {
@@ -173,7 +131,7 @@ const OrganizationFormPage = () => {
                     loginId: credentials.loginId,
                     email: credentials.email,
                     password: credentials.password,
-                    validTill: dayjs(credentials.validTill).format('DD MMM YYYY'),
+                    portal: credentials.portal,
                 });
             }
         } catch (err) {
@@ -194,7 +152,7 @@ const OrganizationFormPage = () => {
         <div>
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <h1 className="text-xl md:text-2xl font-bold m-0" style={{ color: COLORS.headingBlue }}>Organizations/Vendors</h1>
-                <ModeToggle value={mode} onChange={(v) => (editing ? setMode(v) : message.info('Click "Edit & Modify Profile" to change the mode.'))} />
+                <ModeToggle value={mode} />
             </div>
             <h2 className="text-lg font-semibold mt-1 mb-4" style={{ color: COLORS.textPrimary }}>
                 {existing ? existing.name : type}
@@ -225,7 +183,7 @@ const OrganizationFormPage = () => {
                         )}
                     </div>
                     <p className="text-[11px] -mt-2 mb-4" style={{ color: COLORS.textSecondary }}>
-                        {MODE_LABEL[mode]} mode: the {MODE_LABEL[mode]} claim workflow ({workflow[mode].stages.length} stages) is assigned automatically. Plan and settings are finalized in the last step.
+                        The {MODE_LABEL[mode]} claim workflow ({workflow[mode].stages.length} stages) is assigned automatically. The admin login works on the Admin portal.
                     </p>
 
                     <Form form={form} layout="vertical" requiredMark={false} disabled={!editing} scrollToFirstError>
@@ -267,9 +225,8 @@ const adminFromForm = (v) => ({
 const OrganizationFormRoute = () => {
     const { id } = useParams();
     const { loading } = useCollection('organizations');
-    const { loading: plansLoading } = useCollection('plans');
     const [workflow] = useRemoteValue('workflows');
-    if ((id && loading) || plansLoading || !workflow) return <div className="py-24 flex justify-center"><Spin /></div>;
+    if ((id && loading) || !workflow) return <div className="py-24 flex justify-center"><Spin /></div>;
     return <OrganizationFormPage key={id ?? 'new'} />;
 };
 

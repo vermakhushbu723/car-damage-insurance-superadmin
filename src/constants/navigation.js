@@ -29,7 +29,7 @@ export const SIDEBAR_GROUPS = [
         title: 'ORGANIZATIONS MANAGEMENT',
         items: [
             { key: 'organizations', label: 'Organzitions/Vendors', icon: BankOutlined, path: ROUTES.ORGANIZATIONS },
-            { key: 'saas-plans', label: 'SaaS Plans & Subscription', icon: CrownOutlined, path: ROUTES.SAAS_PLANS },
+            { key: 'plans', label: 'Plans & Subscription', icon: CrownOutlined, path: ROUTES.PLANS },
             { key: 'admin-users', label: 'Admin Users', icon: TeamOutlined, path: ROUTES.ADMIN_USERS },
         ],
     },
@@ -54,7 +54,7 @@ export const SIDEBAR_GROUPS = [
         items: [
             { key: 'claim-report', label: 'Claim Report', icon: FileTextOutlined, path: ROUTES.CLAIM_REPORT },
             { key: 'user-report', label: 'User Report', icon: IdcardOutlined, path: ROUTES.USER_REPORT },
-            { key: 'saas-usage', label: 'SaaS  Usage Report', icon: FileSearchOutlined, path: ROUTES.SAAS_USAGE },
+            { key: 'usage-report', label: 'Service Provider Report', icon: FileSearchOutlined, path: ROUTES.USAGE_REPORT },
             { key: 'data-download', label: 'Data Download', icon: DownloadOutlined, path: ROUTES.DATA_DOWNLOAD },
         ],
     },

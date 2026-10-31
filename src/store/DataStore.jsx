@@ -15,15 +15,20 @@ import { getToken } from '../auth/session';
  *          serviceModels, claims, downloads, integrations
  * Objects: workflows ({ saas, serviceProvider, options }), system, usage (report metrics)
  */
+// Service Provider edition: SaaS organizations (and their users / claims) never show here,
+// whichever super admin signs in.
+const SP = 'Service Provider';
+const spOrganizations = async () => (await organizationsApi.list()).filter((o) => o.serviceModel === SP);
+
 const LOADERS = {
-    organizations: organizationsApi.list,
-    users: usersApi.list,
+    organizations: spOrganizations,
+    users: async () => (await usersApi.list()).filter((u) => u.serviceModel === SP),
     adminUsers: adminUsersApi.list,
     plans: plansApi.list,
     roles: async () => (await rolesApi.list()).roles,
     auditLogs: auditLogsApi.list,
     serviceModels: serviceModelsApi.list,
-    claims: claimsApi.list,
+    claims: async () => (await claimsApi.list()).filter((c) => c.serviceModel === SP),
     downloads: downloadsApi.list,
     integrations: integrationsApi.list,
     workflows: workflowsApi.list,

@@ -8,16 +8,12 @@ import useScrollSpy from '../../components/forms/useScrollSpy';
 import PageTitle from '../../components/ui/PageTitle';
 import { useCollection, useRoles } from '../../store/DataStore';
 import { usersApi, adminUsersApi } from '../../api/superadminApi';
-import { isMasterAdmin, getAdminScope } from '../../auth/session';
-import CredentialsModal from '../../components/organizations/CredentialsModal';
+import { isMasterAdmin } from '../../auth/session';
+import CredentialsModal, { NOT_CONNECTED, signInOn } from '../../components/organizations/CredentialsModal';
 import { ROUTES } from '../../constants/routes';
 import { USER_ROLES, BRANCHES } from '../../data/options';
 
-const SCOPE_OPTIONS = [
-    { value: 'all', label: 'All (SaaS + Service Provider)' },
-    { value: 'saas', label: 'SaaS only' },
-    { value: 'serviceProvider', label: 'Service Provider only' },
-];
+const SCOPE_OPTIONS = [{ value: 'serviceProvider', label: 'Service Provider' }];
 
 /**
  * "+ Add User" (Users) and "+ Add Admin User" (Admin Users) -- same
@@ -125,8 +121,8 @@ const UserCreatePage = ({ variant = 'user' }) => {
                 setCredentials({
                     title: 'User created',
                     fileName: user.id,
-                    note: `${user.name} must change this password at first login.`,
-                    rows: [['User', `${user.name}`], ['Organization', user.organization], ['User ID', c.loginId], ['Password', c.password, 'password']],
+                    note: c.portal ? `${user.name} signs in with the User ID (or email) and this password, and must change it at first login.` : NOT_CONNECTED,
+                    rows: [['User', `${user.name}`], ['Organization', user.organization], ['User ID', c.loginId], ['Password', c.password, 'password'], ['Sign In As', signInOn(c.portal)]],
                 });
             }
         } catch (err) {
@@ -150,7 +146,7 @@ const UserCreatePage = ({ variant = 'user' }) => {
                     layout="vertical"
                     requiredMark={false}
                     className="flex-1 min-w-0 max-w-[900px]"
-                    initialValues={isAdmin ? { status: 'Active', mfa: 'Enabled', scope: getAdminScope() } : { status: 'Active', platform: 'Both' }}
+                    initialValues={isAdmin ? { status: 'Active', mfa: 'Enabled', scope: 'serviceProvider' } : { status: 'Active', platform: 'Both' }}
                     onFinish={onFinish}
                     onFinishFailed={() => message.error('Please fix the highlighted fields.')}
                     scrollToFirstError

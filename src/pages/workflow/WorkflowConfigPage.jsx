@@ -12,12 +12,12 @@ import StatusTag from '../../components/ui/StatusTag';
 import DataTable from '../../components/ui/DataTable';
 import OnOffSwitch from '../../components/ui/OnOffSwitch';
 import ModeToggle from '../../components/ui/ModeToggle';
-import { scopedMode } from '../../auth/session';
+import { EDITION_MODE } from '../../auth/session';
 import { EditChip } from '../../components/ui/RowActions';
 import { useRemoteValue, useCollection } from '../../store/DataStore';
 import { workflowsApi } from '../../api/superadminApi';
 import {
-    OPERATING_MODELS, ADMIN_PROFILES, FEE_BILL_MODELS, CHANNEL_OPTIONS, AUTO_ROLES, modeOfOrg, SERVICE_MODEL_OF_MODE, MODE_LABEL,
+    OPERATING_MODELS, ADMIN_PROFILES, FEE_BILL_MODELS, CHANNEL_OPTIONS, AUTO_ROLES, SERVICE_MODEL_OF_MODE, MODE_LABEL,
 } from '../../data/workflow';
 import { COLORS } from '../../constants/theme';
 import { ROUTES, orgPath } from '../../constants/routes';
@@ -77,12 +77,12 @@ const JourneyStepper = ({ stages, rules, selected, onSelect }) => (
 const WorkflowConfigPage = () => {
     const { message, modal } = App.useApp();
     const navigate = useNavigate();
-    const [params, setParams] = useSearchParams();
+    const [params] = useSearchParams();
     const [workflow, setWorkflow] = useRemoteValue('workflows');
     const { items: orgs } = useCollection('organizations');
     const linkedOrg = orgs.find((o) => o.id === params.get('org'));
     // Automatic: an organization's workflow is decided by its service model.
-    const mode = scopedMode(linkedOrg ? modeOfOrg(linkedOrg) : params.get('mode') === 'service-provider' ? 'serviceProvider' : 'saas');
+    const mode = EDITION_MODE;
     const cfg = workflow[mode];
     const modeOrgs = useMemo(() => orgs.filter((o) => o.serviceModel === SERVICE_MODEL_OF_MODE[mode]), [orgs, mode]);
 
@@ -105,7 +105,7 @@ const WorkflowConfigPage = () => {
     useEffect(() => {
         overviewForm.setFieldsValue({
             ...cfg.overview,
-            operatingModel: mode === 'saas' ? OPERATING_MODELS[0] : OPERATING_MODELS[1],
+            operatingModel: OPERATING_MODELS[0],
             ...(linkedOrg ? { insurer: linkedOrg.name } : {}),
         });
     }, [mode, linkedOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -126,17 +126,6 @@ const WorkflowConfigPage = () => {
         }
     };
 
-    const switchMode = (next) => {
-        if (next === mode) return;
-        const go = () => {
-            setDraftRules(null);
-            setParams(next === 'saas' ? {} : { mode: 'service-provider' });
-        };
-        if (draftRules) {
-            modal.confirm({ title: 'Discard unsaved stage rules?', okText: 'Discard', onOk: go });
-        } else go();
-    };
-
     const setRule = (stage, key, value) => {
         setDraftRules(rules.map((r) => (r.stage === stage ? { ...r, [key]: value, ...(key === 'enabled' && !value ? { view: false, edit: false, approve: false } : {}) } : r)));
     };
@@ -151,7 +140,7 @@ const WorkflowConfigPage = () => {
         const saved = await run('config', () => workflowsApi.update(mode, {
             overview: { insurer: insurer ?? null, adminProfile, ...(mode === 'serviceProvider' ? { feeBillModel } : {}) },
             ...(draftRules ? { rules: draftRules } : {}),
-        }), `${mode === 'saas' ? 'SaaS' : 'Service Provider'} configuration saved.`);
+        }), `${MODE_LABEL[mode]} configuration saved.`);
         if (saved) setDraftRules(null);
         return saved;
     };
@@ -159,7 +148,7 @@ const WorkflowConfigPage = () => {
     const activateConfiguration = () => {
         modal.confirm({
             title: 'Activate this configuration?',
-            content: `The ${mode === 'saas' ? 'SaaS' : 'Service Provider'} workflow (${cfg.stats.stages} enabled stages) will apply to ${overviewForm.getFieldValue('insurer') || 'its organizations'}.`,
+            content: `The ${MODE_LABEL[mode]} workflow (${cfg.stats.stages} enabled stages) will apply to ${overviewForm.getFieldValue('insurer') || 'its organizations'}.`,
             okText: 'Activate',
             onOk: async () => {
                 if (await saveConfiguration()) await run('activate', () => workflowsApi.activate(mode), 'Configuration activated.');
@@ -208,7 +197,7 @@ const WorkflowConfigPage = () => {
                         <Select options={ADMIN_PROFILES.map((v) => ({ value: v, label: v }))} />
                     </Form.Item>
                     <Form.Item name="feeBillModel" label={<b>FCE Bill Model</b>} className="mb-0">
-                        <Select disabled={mode === 'saas'} options={FEE_BILL_MODELS.map((v) => ({ value: v, label: v }))} />
+                        <Select options={FEE_BILL_MODELS.map((v) => ({ value: v, label: v }))} />
                     </Form.Item>
                 </Form>
                 </div>
@@ -294,7 +283,7 @@ const WorkflowConfigPage = () => {
 
     return (
         <div>
-            <PageTitle title="Claim Workflow & Role Configuration" extra={<ModeToggle value={mode} onChange={switchMode} />} />
+            <PageTitle title="Claim Workflow & Role Configuration" extra={<ModeToggle value={mode} />} />
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 {stats.map((s) => <StatCard key={s.label} {...s} />)}
@@ -304,13 +293,6 @@ const WorkflowConfigPage = () => {
                 <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${COLORS.border}` }}>
                     <span className="text-sm font-semibold" style={{ color: COLORS.headingBlue }}>{cfg.journeyTitle}</span>
                     <div className="flex flex-wrap gap-2">
-                        <Button
-                            size="small"
-                            onClick={() => (mode === 'saas' ? message.info('Already showing the full insurer workflow.') : switchMode('saas'))}
-                            style={{ background: COLORS.primarySoft, color: COLORS.primary, border: 'none', fontWeight: 600 }}
-                        >
-                            Full - Insurer Workflow
-                        </Button>
                         <Button size="small" type="primary" loading={busy === 'config'} onClick={saveConfiguration} style={{ fontWeight: 600 }}>Save Configuration</Button>
                     </div>
                 </div>
