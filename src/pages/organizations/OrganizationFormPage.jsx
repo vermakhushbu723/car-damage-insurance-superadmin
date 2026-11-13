@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Form, Select, Button, App, Result, Spin } from 'antd';
-import { ApartmentOutlined } from '@ant-design/icons';
+import { Form, Select, Button, App, Result, Spin, Tabs } from 'antd';
+import { ApartmentOutlined, TeamOutlined, ProfileOutlined } from '@ant-design/icons';
 import CredentialsModal from '../../components/organizations/CredentialsModal';
+import OrganizationMembers from '../../components/organizations/OrganizationMembers';
 import FormSection from '../../components/forms/FormSection';
 import StepNav from '../../components/forms/StepNav';
 import FieldGrid from '../../components/forms/FieldRenderer';
@@ -22,7 +23,8 @@ const TYPE_OPTIONS = Object.keys(ORG_FORMS).map((t) => ({ value: t, label: t }))
  * Organizations/Vendors create + view/edit form. The "Organnization Type"
  * dropdown swaps the whole form (Insurer / Broker / Surveyor / Workshop,
  * see data/orgForms.js). On /organizations/:id the form opens read-only
- * with the saved values; "Edit & Modify Profile" unlocks it.
+ * with the saved values; "Edit & Modify Profile" unlocks it. Its first tab,
+ * "Admins & Users", lists the organization's admin login(s) and all its users.
  * "+ Add Pilot ID" / "Permanent ID" (top) and "Create Pilot ID" / "Create
  * Working ID" (bottom) both create an Active org (Permanent = Working; the
  * choice is kept as `idType`) and then show the generated Organization ID,
@@ -49,6 +51,7 @@ const OrganizationFormPage = () => {
     const [editing, setEditing] = useState(!isView);
     const [submitting, setSubmitting] = useState(null);
     const [credentials, setCredentials] = useState(null); // shown after a new ID is created
+    const [tab, setTab] = useState('members'); // view mode: 'members' | 'profile'
 
     const config = ORG_FORMS[type];
     const [sectionRefs, activeSection, scrollTo] = useScrollSpy([type]);
@@ -159,7 +162,21 @@ const OrganizationFormPage = () => {
                 {existing && <span className="ml-2 text-xs font-medium" style={{ color: COLORS.textSecondary }}>({existing.id} · {type})</span>}
             </h2>
 
-            <div className="flex gap-6 items-start">
+            {isView && (
+                <Tabs
+                    className="mb-1"
+                    activeKey={tab}
+                    onChange={setTab}
+                    items={[
+                        { key: 'members', label: <span><TeamOutlined /> Admins & Users</span> },
+                        { key: 'profile', label: <span><ProfileOutlined /> Organization Profile</span> },
+                    ]}
+                />
+            )}
+            {isView && tab === 'members' && <OrganizationMembers orgId={existing.id} />}
+
+            {/* Kept mounted on the members tab so the loaded form values stay. */}
+            <div className="flex gap-6 items-start" style={isView && tab !== 'profile' ? { display: 'none' } : undefined}>
                 <StepNav steps={config.steps} activeIndex={activeSection} onStepClick={scrollTo} />
 
                 <div className="flex-1 min-w-0 max-w-[900px]">

@@ -9,7 +9,6 @@ export const ROUTES = {
     ORGANIZATIONS: '/organizations',
     ORGANIZATION_NEW: '/organizations/new',
     ORGANIZATION_VIEW: '/organizations/:id',
-    PLANS: '/plans',
     ADMIN_USERS: '/admin-users',
     ADMIN_USER_NEW: '/admin-users/new',
 

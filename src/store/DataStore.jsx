@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    organizationsApi, usersApi, adminUsersApi, plansApi, rolesApi, auditLogsApi, serviceModelsApi,
+    organizationsApi, usersApi, adminUsersApi, rolesApi, auditLogsApi, serviceModelsApi,
     workflowsApi, claimsApi, downloadsApi, integrationsApi, systemApi, reportsApi,
 } from '../api/superadminApi';
 import { getToken } from '../auth/session';
@@ -11,7 +11,7 @@ import { getToken } from '../auth/session';
  * memory; pages change data through src/api/superadminApi.js and then call
  * upsert()/set()/reload() so every page sees the saved result.
  *
- * Arrays:  organizations, users, adminUsers, plans, roles, auditLogs,
+ * Arrays:  organizations, users, adminUsers, roles, auditLogs,
  *          serviceModels, claims, downloads, integrations
  * Objects: workflows ({ saas, serviceProvider, options }), system, usage (report metrics)
  */
@@ -24,7 +24,6 @@ const LOADERS = {
     organizations: spOrganizations,
     users: async () => (await usersApi.list()).filter((u) => u.serviceModel === SP),
     adminUsers: adminUsersApi.list,
-    plans: plansApi.list,
     roles: async () => (await rolesApi.list()).roles,
     auditLogs: auditLogsApi.list,
     serviceModels: serviceModelsApi.list,

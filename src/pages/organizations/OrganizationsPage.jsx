@@ -15,14 +15,15 @@ import { formatDate, matchesQuery } from '../../utils/format';
 import { getAdminScope } from '../../auth/session';
 import { SERVICE_MODEL_OF_MODE } from '../../data/workflow';
 
-const EMPTY_FILTERS = { q: '', status: 'All', type: 'All', plan: 'All', serviceModel: 'All' };
+const EMPTY_FILTERS = { q: '', status: 'All', type: 'All', serviceModel: 'All' };
 const opts = (list, allLabel) => [{ value: 'All', label: allLabel }, ...list.map((v) => ({ value: v, label: v }))];
 
 /**
  * Organizations/Vendors list. Filters are drafted in the bar and applied
  * with "Apply Filters" (search applies as you type); stat cards act as
- * quick status filters. "Edit & Modify" turns Status/Subscription into
- * inline dropdowns; the eye opens the organization's profile form.
+ * quick status filters. "Edit & Modify" turns Status into an
+ * inline dropdown; the eye opens the organization's profile with its
+ * admins and users. Service Provider organizations have no plan.
  */
 const OrganizationsPage = () => {
     const navigate = useNavigate();
@@ -31,19 +32,14 @@ const OrganizationsPage = () => {
     // A SaaS / Service Provider super admin only manages their own organizations.
     const scope = getAdminScope();
     const orgs = useMemo(() => (scope === 'all' ? allOrgs : allOrgs.filter((o) => o.serviceModel === SERVICE_MODEL_OF_MODE[scope])), [allOrgs, scope]);
-    const { items: plans } = useCollection('plans');
     const [draft, setDraft] = useState(EMPTY_FILTERS);
     const [applied, setApplied] = useState(EMPTY_FILTERS);
     const [editing, setEditing] = useState(false);
-
-    const planOptions = plans.map((p) => ({ value: p.id, label: p.name }));
-    const planName = (id) => plans.find((p) => p.id === id)?.name ?? '—';
 
     const rows = useMemo(() => orgs.filter((o) =>
         matchesQuery(o, draft.q, ['name', 'type', 'id'])
         && (applied.status === 'All' || o.status === applied.status)
         && (applied.type === 'All' || o.type === applied.type)
-        && (applied.plan === 'All' || o.plan === applied.plan)
         && (applied.serviceModel === 'All' || o.serviceModel === applied.serviceModel)), [orgs, draft.q, applied]);
 
     const count = (s) => orgs.filter((o) => o.status === s).length;
@@ -69,15 +65,12 @@ const OrganizationsPage = () => {
     const moreFilters = (
         <Select
             className="w-full sm:w-[150px]"
-            value={draft.plan !== 'All' ? `plan:${draft.plan}` : draft.serviceModel !== 'All' ? `mode:${draft.serviceModel}` : 'All'}
+            value={draft.serviceModel !== 'All' ? `mode:${draft.serviceModel}` : 'All'}
             onChange={(v) => {
-                if (v === 'All') return setDraft({ ...draft, plan: 'All', serviceModel: 'All' });
-                const [kind, val] = v.split(':');
-                setDraft({ ...draft, plan: kind === 'plan' ? val : 'All', serviceModel: kind === 'mode' ? val : 'All' });
+                setDraft({ ...draft, serviceModel: v === 'All' ? 'All' : v.split(':')[1] });
             }}
             options={[
                 { value: 'All', label: 'More Filters' },
-                { label: 'Subscription', options: plans.map((p) => ({ value: `plan:${p.id}`, label: p.name })) },
                 { label: 'Service Model', options: SERVICE_MODES.map((s) => ({ value: `mode:${s}`, label: s })) },
             ]}
         />
@@ -130,18 +123,16 @@ const OrganizationsPage = () => {
                         ),
                     },
                     { title: 'Type', dataIndex: 'type' },
-                    { title: 'Users', dataIndex: 'users', align: 'center', sorter: (a, b) => a.users - b.users },
+                    { title: 'Admin Login', dataIndex: 'adminLoginId', render: (v) => v || '—' },
+                    {
+                        title: 'Users', dataIndex: 'users', align: 'center', sorter: (a, b) => a.users - b.users,
+                        render: (n, r) => <Button type="link" size="small" onClick={() => navigate(`${orgPath(r.id)}#members`)}>{n}</Button>,
+                    },
                     {
                         title: 'Staus', dataIndex: 'status', align: 'center', width: 150,
                         render: (s, r) => (editing
                             ? <Select size="small" value={s} loading={saving === `${r.id}:status`} disabled={saving === `${r.id}:status`} style={{ width: 120 }} options={ORG_STATUSES.map((v) => ({ value: v, label: v }))} onChange={(v) => setField(r.id, 'status', v, 'Status')} />
                             : <StatusTag status={s} />),
-                    },
-                    {
-                        title: 'Subscription', dataIndex: 'plan', width: 160,
-                        render: (p, r) => (editing
-                            ? <Select size="small" value={p} loading={saving === `${r.id}:plan`} disabled={saving === `${r.id}:plan`} style={{ width: 130 }} options={planOptions} onChange={(v) => setField(r.id, 'plan', v, 'Subscription')} />
-                            : planName(p)),
                     },
                     { title: 'Created On', dataIndex: 'createdOn', render: formatDate, sorter: (a, b) => a.createdOn.localeCompare(b.createdOn) },
                     { title: 'Action', key: 'action', align: 'center', width: 80, render: (_, r) => <ViewButton onClick={() => navigate(orgPath(r.id))} /> },

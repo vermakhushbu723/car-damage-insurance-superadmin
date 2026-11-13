@@ -16,12 +16,10 @@ export const organizationsApi = {
     get: (id) => api.get(`/organizations/${enc(id)}`),
     create: (body) => api.post('/organizations', body),
     update: (id, patch) => api.patch(`/organizations/${enc(id)}`, patch),
-};
-
-export const plansApi = {
-    list: () => api.get('/plans'),
-    update: (id, patch) => api.patch(`/plans/${enc(id)}`, patch),
-    assign: (id, organizationIds) => api.post(`/plans/${enc(id)}/assign`, { organizationIds }),
+    /** { admins, users } of one organization (Super Admin console + Admin portal accounts). */
+    members: (id) => api.get(`/organizations/${enc(id)}/members`),
+    /** { admins, adminPortal }: every organization's admin login (Admin Users). */
+    admins: () => api.get('/organizations/admins'),
 };
 
 export const adminUsersApi = {

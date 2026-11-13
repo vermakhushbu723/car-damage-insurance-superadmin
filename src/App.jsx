@@ -14,7 +14,7 @@ const EXTRA_TITLES = [
     [ROUTES.OVERVIEW, 'Dashboard'],
     [ROUTES.ORGANIZATION_NEW, 'Add Organization'],
     [ROUTES.USER_NEW, 'Add User'],
-    [ROUTES.ADMIN_USER_NEW, 'Add Admin User'],
+    [ROUTES.ADMIN_USER_NEW, 'Add Organization Admin'],
     [ROUTES.SERVICE_MODEL_NEW, 'Add Service Model'],
 ];
 

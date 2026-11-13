@@ -10,7 +10,6 @@ import OverviewDashboardPage from '../pages/dashboard/OverviewDashboardPage';
 
 import OrganizationsPage from '../pages/organizations/OrganizationsPage';
 import OrganizationFormPage from '../pages/organizations/OrganizationFormPage';
-import PlansPage from '../pages/plans/PlansPage';
 import AdminUsersPage from '../pages/users/AdminUsersPage';
 
 import UsersPage from '../pages/users/UsersPage';
@@ -35,7 +34,9 @@ import SystemSettingsPage from '../pages/system/SystemSettingsPage';
 const LEGACY_REDIRECTS = [
     ['/claim/*', ROUTES.OVERVIEW],
     ['/preinspection/*', ROUTES.OVERVIEW],
-    ['/saas-plans', ROUTES.PLANS],
+    // Service Provider has no plans / subscriptions.
+    ['/saas-plans', ROUTES.ORGANIZATIONS],
+    ['/plans', ROUTES.ORGANIZATIONS],
     ['/reports/saas-usage', ROUTES.USAGE_REPORT],
     ['/insurer/*', `${ROUTES.ORGANIZATION_NEW}?type=Insurer`],
     ['/broker', `${ROUTES.ORGANIZATION_NEW}?type=Broker`],
@@ -64,7 +65,6 @@ const AppRoutes = () => (
             <Route path={ROUTES.ORGANIZATIONS} element={<OrganizationsPage />} />
             <Route path={ROUTES.ORGANIZATION_NEW} element={<OrganizationFormPage key="new" />} />
             <Route path={ROUTES.ORGANIZATION_VIEW} element={<OrganizationFormPage />} />
-            <Route path={ROUTES.PLANS} element={<PlansPage />} />
             <Route path={ROUTES.ADMIN_USERS} element={<AdminUsersPage />} />
             <Route path={ROUTES.ADMIN_USER_NEW} element={<UserCreatePage key="admin" variant="admin" />} />
 
