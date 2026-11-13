@@ -7,6 +7,7 @@ import ibimaLogo from '../../assets/images/ibimaLogo.svg';
 import { COLORS } from '../../constants/theme';
 import { ROUTES } from '../../constants/routes';
 import { setSuperAdminSession, getSuperAdminSession } from '../../auth/session';
+import { ON_SITE, loginUrl } from '../../portal';
 import { authApi } from '../../api/superadminApi';
 import { useClearRemoteData } from '../../store/DataStore';
 
@@ -92,6 +93,8 @@ const LoginPage = () => {
     // Already signed in -> straight to the dashboard. Bounced here by an expired session -> say so.
     useEffect(() => {
         if (getSuperAdminSession()) navigate(ROUTES.HOME, { replace: true });
+        // On the website, signing in happens on the common login page.
+        else if (ON_SITE) window.location.replace(loginUrl({ expired: !!params.get('expired') }));
         else if (params.get('expired')) message.warning('Your session ended. Please sign in again.');
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

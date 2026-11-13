@@ -1,4 +1,5 @@
 import { getToken, clearSuperAdminSession } from '../auth/session';
+import { loginUrl } from '../portal';
 
 // Same-origin by default: Vite (dev/preview) and nginx (production) proxy
 // /api to superadmin-service. Override with VITE_API_BASE_URL if the API
@@ -45,7 +46,7 @@ export async function request(method, path, body, { auth = true } = {}) {
     if (!res.ok) {
         if (res.status === 401 && auth && token) {
             clearSuperAdminSession();
-            if (!window.location.pathname.startsWith('/login')) window.location.replace('/login?expired=1');
+            if (!/\/login$/.test(window.location.pathname)) window.location.replace(loginUrl({ expired: true }));
         }
         const message = data?.detail || (res.status >= 500 ? 'Server error, please try again.' : `Request failed (${res.status}).`);
         throw new ApiError(res.status, message, data);

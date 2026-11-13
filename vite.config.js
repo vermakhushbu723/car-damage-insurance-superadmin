@@ -10,7 +10,9 @@ const apiProxy = {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+    // Built for the website domain: assets + API under /apps/superadmin/ (see src/portal.js).
+    base: command === 'build' ? '/apps/superadmin/' : '/',
     plugins: [react(), tailwindcss()],
     server: {
         port: 5180,
@@ -21,4 +23,4 @@ export default defineConfig({
         port: 4180,
         proxy: apiProxy,
     },
-})
+}))
