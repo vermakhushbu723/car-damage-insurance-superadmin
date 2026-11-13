@@ -12,11 +12,37 @@ import { ViewButton } from '../../components/ui/RowActions';
 import { useCollection } from '../../store/DataStore';
 import { usersApi } from '../../api/superadminApi';
 import { ROUTES } from '../../constants/routes';
-import { USER_ROLES, USER_STATUSES } from '../../data/options';
+import { USER_ROLES, USER_STATUSES, PORTAL_ROLES } from '../../data/options';
 import { formatDateTime, matchesQuery, formatNumber } from '../../utils/format';
 
 const EMPTY = { q: '', org: 'All', role: 'All', status: 'All' };
 const withAll = (list, label) => [{ value: 'All', label }, ...list.map((v) => ({ value: v, label: v }))];
+
+
+/** A user's roles as small tags (first = primary). */
+const RoleTags = ({ roles }) => (
+    <span className="inline-flex flex-wrap gap-1">
+        {roles.map((r, i) => (
+            <span key={r} className="rounded px-1.5 py-0.5 text-[11px] whitespace-nowrap" style={{ background: i === 0 ? '#DBEAFE' : '#EEF2F7', color: i === 0 ? '#1E40AF' : '#334155' }}>{r}</span>
+        ))}
+    </span>
+);
+
+/** Inline multi-role picker: saves once when the dropdown closes (not on every click). */
+const RolesEditor = ({ value, disabled, onSave }) => {
+    const [draft, setDraft] = useState(value);
+    const save = (open) => {
+        if (open) return;
+        if (!draft.length) { setDraft(value); return; }
+        if (draft.join() !== value.join()) onSave(draft);
+    };
+    return (
+        <Select
+            size="small" mode="multiple" value={draft} disabled={disabled} style={{ minWidth: 190 }} maxTagCount="responsive"
+            options={PORTAL_ROLES.map((v) => ({ value: v, label: v }))} onChange={setDraft} onOpenChange={save}
+        />
+    );
+};
 
 /**
  * Users list (field users across all organizations). Same filter/apply +
@@ -37,7 +63,7 @@ const UsersPage = () => {
     const rows = useMemo(() => users.filter((u) =>
         matchesQuery(u, draft.q, ['name', 'email', 'userId', 'organization', 'branch'])
         && (applied.org === 'All' || u.organization === applied.org)
-        && (applied.role === 'All' || u.role === applied.role)
+        && (applied.role === 'All' || (u.roles ?? [u.role]).includes(applied.role))
         && (applied.status === 'All' || u.status === applied.status)), [users, draft.q, applied]);
 
     const count = (s) => users.filter((u) => u.status === s).length;
@@ -87,8 +113,12 @@ const UsersPage = () => {
                     { title: 'Users Name', dataIndex: 'name', width: 200, render: (n) => <UserCell name={n} />, sorter: (a, b) => a.name.localeCompare(b.name) },
                     { title: 'Organization', dataIndex: 'organization' },
                     {
-                        title: 'Role', dataIndex: 'role',
-                        render: (r, row) => (editing ? <Select size="small" value={r} disabled={saving === row.id} style={{ width: 130 }} options={USER_ROLES.map((v) => ({ value: v, label: v }))} onChange={(v) => change(row.id, { role: v }, 'Role')} /> : r),
+                        title: 'Roles', dataIndex: 'roles',
+                        render: (_, row) => {
+                            const list = row.roles ?? [row.role];
+                            if (editing && !list.includes('Admin')) return <RolesEditor value={list} disabled={saving === row.id} onSave={(v) => change(row.id, { roles: v }, 'Roles')} />;
+                            return <RoleTags roles={list} />;
+                        },
                     },
                     {
                         title: 'Staus', dataIndex: 'status', align: 'center',
@@ -111,7 +141,7 @@ const UsersPage = () => {
                     { label: 'Phone', value: viewing.phone },
                     { label: 'Platform', value: viewing.platform },
                     { label: 'Organization', value: viewing.organization },
-                    { label: 'Role', value: viewing.role },
+                    { label: 'Roles', value: <RoleTags roles={viewing.roles ?? [viewing.role]} /> },
                     { label: 'Branch', value: viewing.branch },
                     { label: 'Created On', value: formatDateTime(viewing.createdOn) },
                     { label: 'Last Login', value: formatDateTime(viewing.lastLogin), span: 2 },

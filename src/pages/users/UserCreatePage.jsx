@@ -10,7 +10,7 @@ import { useCollection } from '../../store/DataStore';
 import { usersApi } from '../../api/superadminApi';
 import CredentialsModal, { NOT_CONNECTED, signInOn } from '../../components/organizations/CredentialsModal';
 import { ROUTES } from '../../constants/routes';
-import { USER_ROLES, BRANCHES } from '../../data/options';
+import { PORTAL_ROLES, BRANCHES } from '../../data/options';
 
 /**
  * "+ Add User" (Users) and "+ Add Admin" (Admin Users: an organization's admin, role fixed) -- same
@@ -46,7 +46,10 @@ const UserCreatePage = ({ variant = 'user' }) => {
                     { name: 'organization', label: 'Organization', type: 'select', placeholder: 'Select Organization', options: orgOptions, required: true },
                     isAdmin
                         ? { name: 'role', label: 'Role', type: 'select', options: ['Admin'], disabled: true }
-                        : { name: 'role', label: 'Role', type: 'select', placeholder: 'Select Role', options: USER_ROLES, required: true },
+                        : {
+                            name: 'roles', label: 'Roles (select one or more)', type: 'multiselect', placeholder: 'Select Roles', options: PORTAL_ROLES, required: true,
+                            rules: [{ required: true, type: 'array', min: 1, message: 'Select at least one role' }],
+                        },
                 ],
             },
             {
@@ -73,7 +76,7 @@ const UserCreatePage = ({ variant = 'user' }) => {
         try {
             {
                 const { user, credentials: c } = await usersApi.create({
-                    organizationId: v.organization, name: v.name, email: v.email, phone: v.phone, role: isAdmin ? 'Admin' : v.role,
+                    organizationId: v.organization, name: v.name, email: v.email, phone: v.phone, roles: isAdmin ? ['Admin'] : v.roles,
                     branch: v.branch || undefined, platform: v.platform, status: v.status, password: v.password || undefined,
                 });
                 upsertUser(user);
@@ -81,8 +84,8 @@ const UserCreatePage = ({ variant = 'user' }) => {
                 setCredentials({
                     title: isAdmin ? 'Organization admin created' : 'User created',
                     fileName: user.id,
-                    note: c.portal ? `${user.name} signs in with the User ID (or email) and this password, and must change it at first login.` : NOT_CONNECTED,
-                    rows: [['User', `${user.name}`], ['Organization', user.organization], ['User ID', c.loginId], ['Password', c.password, 'password'], ['Sign In As', signInOn(c.portal)]],
+                    note: c.portal ? `${user.name} signs in with the User ID (or email) and this password, and must change it at first login.${user.roles?.length > 1 ? ' After signing in they pick a role, and can switch roles later from the profile menu.' : ''}` : NOT_CONNECTED,
+                    rows: [['User', `${user.name}`], ['Organization', user.organization], ['Roles', (user.roles ?? [user.role]).join(', ')], ['User ID', c.loginId], ['Password', c.password, 'password'], ['Sign In As', signInOn(c.portal)]],
                 });
             }
         } catch (err) {

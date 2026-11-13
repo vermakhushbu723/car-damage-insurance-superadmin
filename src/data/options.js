@@ -7,6 +7,8 @@ export const ORG_STATUSES = ['Active', 'Pending', 'Suspended', 'Expired'];
 export const SERVICE_MODES = ['Service Provider'];
 
 export const USER_ROLES = ['Manager', 'Surveyor', 'Admin', 'Claim Handler', 'Call Center', 'TCT', 'Sr TCT', 'National Manager'];
+/** Roles a portal user can hold together (Admin is a separate organization admin login). */
+export const PORTAL_ROLES = USER_ROLES.filter((r) => r !== 'Admin');
 export const USER_STATUSES = ['Active', 'Pending', 'Inactive', 'Suspended'];
 export const BRANCHES = ['Mumbai HQ', 'Delhi Branch', 'Banglore', 'Pune Branch', 'Kolkata Branch', 'Chennai Branch', 'Hyderabad Branch'];
 
