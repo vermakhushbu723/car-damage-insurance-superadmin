@@ -6,7 +6,8 @@ export const ORG_TYPES = ['Insurer', 'Broker', 'Surveyor', 'Workshop'];
 export const ORG_STATUSES = ['Active', 'Pending', 'Suspended', 'Expired'];
 export const SERVICE_MODES = ['Service Provider'];
 
-export const USER_ROLES = ['Manager', 'Surveyor', 'Admin', 'Claim Handler', 'Call Center', 'TCT', 'Sr TCT', 'National Manager'];
+/** Every Admin portal role a user can hold (several at once), plus Admin = an organization admin login. */
+export const USER_ROLES = [...['National Manager', 'Regional Manager', 'State Manager', 'Claim Handler', 'Call Center', 'Surveyor', 'Internal Surveyor', 'Investigator', 'TCT', 'Sr TCT', 'Audit'], 'Admin'];
 /** Roles a portal user can hold together (Admin is a separate organization admin login). */
 export const PORTAL_ROLES = USER_ROLES.filter((r) => r !== 'Admin');
 export const USER_STATUSES = ['Active', 'Pending', 'Inactive', 'Suspended'];
