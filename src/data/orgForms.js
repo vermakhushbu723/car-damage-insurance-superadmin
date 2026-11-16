@@ -1,3 +1,4 @@
+import { INDIA_STATES } from './indiaLocations';
 // Organizations/Vendors creation forms, one config per Organization Type.
 // `steps` is the left step list exactly as drawn in each reference frame;
 // `section` points a step at its section index (null = step shown in the
@@ -5,11 +6,8 @@
 // Field `optionsFrom: 'insurers'` is filled at runtime with the live list
 // of Insurer organizations.
 
-export const INDIAN_STATES = [
-    'Andhra Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh',
-    'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Odisha', 'Punjab', 'Rajasthan',
-    'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-];
+/** Every State / UT (data/indiaLocations.js). */
+export const INDIAN_STATES = INDIA_STATES;
 const LINES_OF_BUSINESS = ['Motor', 'Health', 'Property Fire', 'Marine', 'Engineering', 'Misc'];
 
 const INSURER = {
@@ -40,8 +38,8 @@ const INSURER = {
                 { name: 'contactNumber', label: 'Contact Number', type: 'phone', placeholder: '+91 1234567890' },
                 { name: 'officialEmail', label: 'Official Email', type: 'email', placeholder: 'Enter  Official Email', required: true },
                 { name: 'registerAddress', label: 'Register Address', type: 'textarea', placeholder: 'Full Postal Address', span: 24 },
-                { name: 'city', label: 'City', placeholder: 'Enter City' },
-                { name: 'state', label: 'State', type: 'select', placeholder: 'Select State', options: INDIAN_STATES },
+                { name: 'state', label: 'State', type: 'state', placeholder: 'Select State', cityField: 'city' },
+                { name: 'city', label: 'City', type: 'city', stateField: 'state', placeholder: 'Select or type city' },
                 { name: 'country', label: 'Country', placeholder: 'Enter Country' },
                 { name: 'regionalOffice', label: 'Regional Office', type: 'select', placeholder: 'Select Regional Office', options: ['North', 'East', 'West', 'South', 'Central'] },
                 { name: 'postalPin', label: 'Postal PIN Code', type: 'pin', placeholder: '6 Digit Pin', maxLength: 6 },
@@ -101,7 +99,8 @@ const BROKER = {
                 { name: 'primaryContact', label: 'Primary Contact Number', type: 'phone', placeholder: 'Enter Primary  Contact Number' },
                 { name: 'websiteUrl', label: 'Website URL', type: 'url', placeholder: 'Website Link' },
                 { name: 'registerAddress', label: 'Register Address', placeholder: 'Enter Register Address' },
-                { name: 'state', label: 'State', type: 'select', placeholder: 'Select State', options: INDIAN_STATES },
+                { name: 'state', label: 'State', type: 'state', placeholder: 'Select State', cityField: 'city' },
+                { name: 'city', label: 'City', type: 'city', stateField: 'state', placeholder: 'Select or type city' },
                 { name: 'pin', label: 'PIN', type: 'pin', placeholder: '6 Digit Code', maxLength: 6 },
             ],
         },
@@ -175,7 +174,8 @@ const SURVEYOR = {
                 { name: 'pan', label: 'PAN', type: 'pan', placeholder: 'Enter Pan Number' },
                 { name: 'registerAddress', label: 'Register Address', placeholder: 'Enter Register Address' },
                 { name: 'officialEmail', label: 'Official Email ID', type: 'email', placeholder: 'Enter Official Email ID', required: true },
-                { name: 'state', label: 'State', type: 'select', placeholder: 'Select State', options: INDIAN_STATES },
+                { name: 'state', label: 'State', type: 'state', placeholder: 'Select State', cityField: 'city' },
+                { name: 'city', label: 'City', type: 'city', stateField: 'state', placeholder: 'Select or type city' },
                 { name: 'pin', label: 'PIN', type: 'pin', placeholder: '6 Digit Code', maxLength: 6 },
             ],
         },
@@ -197,7 +197,7 @@ const SURVEYOR = {
                 { name: 'yearsOfExperience', label: 'Years of experience', type: 'number', placeholder: 'Years of experience' },
                 { name: 'empanelledInsurers', label: 'Empanelled insurers', type: 'multiselect', placeholder: 'Select From Active Insures: Min 1 Required', optionsFrom: 'insurers', required: true },
                 { name: 'serviceStates', label: 'Service states', type: 'multiselect', placeholder: 'All India States', options: INDIAN_STATES },
-                { name: 'serviceDistricts', label: 'Service districts', type: 'select', placeholder: 'Select District', options: ['Mumbai', 'Pune', 'Thane', 'Nagpur', 'New Delhi', 'Bengaluru Urban', 'Chennai', 'Kolkata'] },
+                { name: 'serviceDistricts', label: 'Service districts', type: 'city', stateField: 'serviceStates', placeholder: 'Select or type district' },
                 { name: 'maxConcurrentSurveys', label: 'Max concurrent surveys', type: 'select', placeholder: 'Enter Number', options: ['1', '2', '3', '5', '8', '10', '15', '20'] },
             ],
         },
@@ -268,7 +268,9 @@ const WORKSHOP = {
                 { name: 'mobileNumber', label: 'Mobile number', type: 'phone', placeholder: 'Eg: +91 1234567890' },
                 { name: 'alternateMobile', label: 'Alternate mobile', type: 'phone', placeholder: 'Eg: +91 1234567890' },
                 { name: 'workshopAddress', label: 'Workshop address', placeholder: 'Enter Workshop Address', span: 24 },
-                { name: 'cityDistrict', label: 'City / District', placeholder: 'Enter City / District' },
+                { name: 'state', label: 'State', type: 'state', placeholder: 'Select State', cityField: 'cityDistrict' },
+                { name: 'cityDistrict', label: 'City / District', type: 'city', stateField: 'state', placeholder: 'Select or type city / district' },
+                { name: 'pin', label: 'PIN', type: 'pin', placeholder: '6 Digit Code', maxLength: 6 },
                 { name: 'googleMapsLink', label: 'Google Maps link / geo-location', type: 'url', placeholder: 'https://maps.google.com/...' },
             ],
         },

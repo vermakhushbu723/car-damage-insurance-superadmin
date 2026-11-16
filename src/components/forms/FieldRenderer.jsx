@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
 import {
-    Form, Input, InputNumber, Select, DatePicker, Checkbox, Radio, Upload, ColorPicker, Row, Col,
+    Form, Input, InputNumber, Select, DatePicker, Checkbox, Radio, Upload, ColorPicker, Row, Col, AutoComplete,
 } from 'antd';
 import { UploadOutlined, LinkOutlined, CheckCircleFilled, MobileOutlined, DesktopOutlined, AppstoreOutlined } from '@ant-design/icons';
 import OnOffSwitch from '../ui/OnOffSwitch';
+import { INDIA_STATES, citiesOf } from '../../data/indiaLocations';
 import { COLORS } from '../../constants/theme';
 
 /*
@@ -119,6 +120,43 @@ const ColorField = ({ value = '#004AC6', onChange, disabled }) => (
     </div>
 );
 
+/** All States / UTs; picking another state clears the address's City field (`cityField`). */
+const StateControl = ({ value, onChange, cityField, ...common }) => {
+    const form = Form.useFormInstance();
+    return (
+        <Select
+            {...common}
+            value={value || undefined}
+            options={INDIA_STATES.map((s) => ({ label: s, value: s }))}
+            showSearch={{ optionFilterProp: 'label' }}
+            allowClear
+            onChange={(next) => {
+                if (cityField && next !== value) form?.setFieldValue(cityField, undefined);
+                onChange?.(next);
+            }}
+        />
+    );
+};
+
+/** Cities of the state(s) in `stateField` (one state or a list); typing a city not listed is allowed. */
+const CityControl = ({ value, onChange, stateField, placeholder, ...common }) => {
+    const form = Form.useFormInstance();
+    const picked = Form.useWatch(stateField, form);
+    const states = Array.isArray(picked) ? picked : picked ? [picked] : [];
+    const typed = String(value ?? '').toLowerCase();
+    const options = [...new Set(states.flatMap(citiesOf))].filter((c) => !typed || c.toLowerCase().includes(typed)).map((c) => ({ value: c }));
+    return (
+        <AutoComplete
+            {...common}
+            value={value || undefined}
+            options={options}
+            allowClear
+            placeholder={states.length ? placeholder || 'Select or type city' : 'Select State first'}
+            onChange={onChange}
+        />
+    );
+};
+
 const dateProps = {
     getValueProps: (v) => ({ value: v ? dayjs(v) : null }),
     normalize: (v) => (v ? v.toISOString() : null),
@@ -137,6 +175,10 @@ function renderControl(field, disabled) {
             return <Select options={toOptions(field.options)} allowClear showSearch={{ optionFilterProp: 'label' }} {...common} />;
         case 'multiselect':
             return <Select mode="multiple" options={toOptions(field.options)} allowClear maxTagCount="responsive" {...common} />;
+        case 'state':
+            return <StateControl {...common} cityField={field.cityField} />;
+        case 'city':
+            return <CityControl {...common} stateField={field.stateField} />;
         case 'date':
             return <DatePicker format="DD-MM-YYYY" className="w-full" {...common} />;
         case 'auto':
@@ -171,7 +213,7 @@ export const Field = ({ field, disabled }) => {
         ...(PATTERN_RULES[field.type] ?? PATTERN_RULES[field.validate] ?? []),
         ...(field.rules ?? []),
     ];
-    const extraProps = field.type === 'date' ? dateProps : {};
+    const extraProps = field.type === 'date' ? dateProps : field.type === 'pin' ? { normalize: (v) => String(v ?? '').replace(/\D/g, '').slice(0, 6) } : {};
     const span = field.span ?? 12;
     return (
         <Col xs={24} md={span}>
